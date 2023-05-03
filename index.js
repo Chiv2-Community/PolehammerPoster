@@ -1,0 +1,267 @@
+import axios from 'axios';
+import snoowrap from 'snoowrap';
+import { InboxStream, CommentStream, SubmissionStream } from "snoostorm";;
+import dotenv from 'dotenv';
+import { Configuration, OpenAIApi } from "openai";
+import { readFileSync } from 'fs';
+
+dotenv.config();
+
+// Load API credentials from environment variables
+const { CLIENT_ID, CLIENT_SECRET, REDDIT_USER, REFRESH_TOKEN, USER_AGENT, GITHUB_TOKEN, OPENAI_API_KEY} = process.env;
+
+// Initialize Reddit API client
+const reddit = new snoowrap({
+  userAgent: USER_AGENT,
+  clientId: CLIENT_ID,
+  clientSecret: CLIENT_SECRET,
+  refreshToken: REFRESH_TOKEN,
+  username: REDDIT_USER,
+});
+
+const openAiConfiguration = new Configuration({
+  apiKey: OPENAI_API_KEY,
+});
+const openai = new OpenAIApi(openAiConfiguration);
+
+
+const subredditName = 'Chivalry2';
+
+async function fetchKeywordsFromGithub() {
+  const githubApiUrl = 'https://api.github.com/repos/Jacoby6000/polehammer/contents/src/weapons';
+  const githubRawBaseUrl = 'https://raw.githubusercontent.com/Jacoby6000/polehammer/main/src/weapons';
+
+  let keywords = {};
+
+  try {
+    // Fetch the list of files in the directory
+    const fileListResponse = await axios.get(githubApiUrl, {
+      headers: {
+        Authorization: `token ${GITHUB_TOKEN}`,
+      },
+    });
+    const fileList = fileListResponse.data;
+
+    // Filter JSON files
+    const jsonFiles = fileList.filter((file) => file.name.endsWith('.json'));
+
+    // Fetch and process each JSON file
+    for (const file of jsonFiles) {
+      try {
+        console.log(`Fetching JSON file from GitHub: ${file.name}`);
+        const response = await axios.get(`${githubRawBaseUrl}/${file.name}`);
+        const weapon = response.data;
+        keywords[weapon.id] = weapon;
+        keywords[weapon.id].keywords = [];
+        keywords[weapon.id].keywords.push(weapon.name.toLowerCase());
+        if(weapon.hasOwnProperty("aliases")) {
+          weapon.aliases.forEach((alias) => {
+            keywords[weapon.id].keywords.push(alias.toLowerCase());
+          });
+        }
+        keywords[weapon.id].keywords = [...new Set(keywords[weapon.id].keywords.flatMap((kw) => [kw.replaceAll(" ", ""), kw]))]
+      } catch (error) {
+        console.error(`Error fetching JSON file from GitHub: ${error}`);
+      }
+    }
+  } catch (error) {
+    console.error(`Error fetching file list from GitHub: ${error}`);
+  }
+
+
+  return keywords;
+}
+
+function weaponQueryParam(weapons) {
+  var str = "weapon=";
+  for (var i = 0; i < weapons.length; i++) {
+    str += weapons[i].id + "-";
+  }
+
+  return str.slice(0, -1);
+}
+    
+function weaponTextList(weapons) {
+  var str = "";
+  for (var i = 0; i < weapons.length; i++) {
+    if(i == weapons.length - 1) 
+      str += "and " + weapons[i].name
+    else if(weapons.length >= 3)
+      str += weapons[i].name + ", ";
+    else
+      str += weapons[i].name + " ";
+  }
+
+  return str
+}
+
+const systemPrompt = readFileSync("system-prompt.txt").toString();
+
+function weaponToStatsPrompt(weapon) {
+return `invisible:
+# ${weapon.name}
+- Damage Type: ${weapon.damageType}
+- One Handed: ${weapon.weaponTypes.includes("One Handed")}
+- Two Handed: ${weapon.weaponTypes.includes("Two Handed")}
+- Attacks:
+  - Averages:
+    - Range: ${(weapon.attacks.slash.range + weapon.attacks.overhead.range + weapon.attacks.stab.range) / 3}j
+    - Alt Range: ${(weapon.attacks.slash.altRange + weapon.attacks.overhead.altRange + weapon.attacks.stab.altRange) / 3}j
+    - Windup: ${(weapon.attacks.slash.light.windup + weapon.attacks.overhead.light.windup + weapon.attacks.stab.light.windup) / 3}ms
+    - Light Damage: ${(weapon.attacks.slash.light.damage + weapon.attacks.overhead.light.damage + weapon.attacks.stab.light.damage) / 3}hp
+    - Heavy Damage: ${(weapon.attacks.slash.heavy.damage + weapon.attacks.overhead.heavy.damage + weapon.attacks.stab.heavy.damage) / 3}hp
+  - Slash:
+    - Range: ${weapon.attacks.slash.range}j
+    - Alt Range: ${weapon.attacks.slash.altRange}j
+    - Windup: ${weapon.attacks.slash.light.windup}ms
+    - Light Damage: ${weapon.attacks.slash.light.damage}hp
+    - Heavy Damage: ${weapon.attacks.slash.heavy.damage}hp
+  - Overhead:
+    - Range: ${weapon.attacks.overhead.range}j
+    - Alt Range: ${weapon.attacks.overhead.altRange}j
+    - Windup: ${weapon.attacks.overhead.light.windup}ms
+    - Light Damage: ${weapon.attacks.overhead.light.damage}hp
+    - Heavy Damage: ${weapon.attacks.overhead.heavy.damage}hp
+  - Stab:
+    - Range: ${weapon.attacks.stab.range}j
+    - Alt Range: ${weapon.attacks.stab.altRange}j
+    - Windup: ${weapon.attacks.stab.light.windup}ms
+    - Light Damage: ${weapon.attacks.stab.light.damage}hp
+    - Heavy Damage: ${weapon.attacks.stab.heavy.damage}hp
+  - Throw:
+    - Legs: ${weapon.rangedAttack.damage.legs}hp
+    - Torso: ${weapon.rangedAttack.damage.torso}hp
+    - Head: ${weapon.rangedAttack.damage.head}hp`
+}
+
+function generateReply(aiResponse, weapons) {
+  const polehammerLink = "https://polehammer.net?" + weaponQueryParam(weapons);
+  const weaponsTextList = weaponTextList(weapons)
+
+  return `${aiResponse}
+
+[Here you can view a direct comparison between the ${weaponsTextList}.](${polehammerLink})  Averages will be displayed by default, but there are more stats available for display.
+
+I am a bot. [Contact my creator](https://www.reddit.com/message/compose/?to=Jacoby6000) if you have any questions or concerns.`
+}
+
+
+// Modify the watchSubreddit function to use fetched keywords
+async function watchSubreddit() {
+  try {
+    const weaponsMap = await fetchKeywordsFromGithub();
+    var ignoreWords = ["cavalry sword"]
+    var allKeywords = Object.values(weaponsMap).map((w) => w.keywords).flat();
+
+    allKeywords.sort((a, b) => b.length - a.length );
+    const getWeaponFromKeyword = function(keyword) {
+      return Object.values(weaponsMap).find((weapon) => weapon.keywords.includes(keyword));
+    }
+
+    const getWeaponsFromKeywords = function(keywords) {
+      return [...new Set(keywords.flatMap((kw) => getWeaponFromKeyword(kw).id))].map((id) => weaponsMap[id]);
+    }
+
+    const findAllKeywords = function(body) {
+      var localBody = body
+      return allKeywords.filter(function(keyword) {
+        if(localBody.includes(keyword)) {
+          localBody = localBody.replaceAll(keyword, "");
+          return true;
+        } else {
+          return false;
+        }
+      });
+    }
+
+    const replaceKeywordsWithWeaponNames = function(foundKeywords, body) {
+      var localBody = body
+      foundKeywords.forEach(function(keyword) {
+        if(localBody.includes(keyword)) {
+          localBody = localBody.replaceAll(keyword, getWeaponFromKeyword(keyword).name);
+        }
+      });
+      return localBody;
+    }
+
+
+
+    const polehammerPrompt = weaponToStatsPrompt(weaponsMap["ph"]);
+
+    // Stream new posts
+    const subreddit = await reddit.getSubreddit(subredditName);
+    console.log(subreddit);
+    console.log(allKeywords);
+
+    const processItem = async (item) => {
+      if(!item.hasOwnProperty("body")) return;
+      console.log("----------------------------------------")
+
+      const body = item.body.toLowerCase();
+      const ignore = ignoreWords.some((word) => body.includes(word));
+      if(ignore) return; 
+
+      const found = findAllKeywords(body);
+      console.log(`[${item.link_id}] Found keywords: ${found}`);
+
+      if (found.length == 0 || item.saved || item.author.name.toLowerCase().includes(REDDIT_USER.toLowerCase())) return;
+
+      try {
+        const weapons = getWeaponsFromKeywords(found).concat([weaponsMap["ph"]]);
+        console.log(`[${item.link_id}] Replying to post`);
+        console.log(`[${item.link_id}] Keywords detected: ${found}`);
+        console.log(`[${item.link_id}] Weapons: ${weapons.map((w) => w.name).toString()}`);
+        const weaponPrompts = weapons.map((x) => ({ role: "assistant", content: weaponToStatsPrompt(x) }))
+        const ms = [
+              { role: "system", content: systemPrompt }].concat(weaponPrompts).concat([
+              { role: "user", content: item.author.name + ": " + replaceKeywordsWithWeaponNames(found, item.body)},
+            ])
+
+        console.log(ms)
+        const openaiResponse = await openai.createChatCompletion(
+          {
+            model: "gpt-3.5-turbo",
+            messages: ms,
+            //max_tokens: 512
+          },
+        );
+
+        const aiAnswer = openaiResponse.data.choices[0].message.content
+        const reply = generateReply(aiAnswer, weapons);
+        console.log(item.body)
+        console.log("\n")
+        console.log(reply)
+
+        item.save();
+        await item.reply(reply);
+      } catch (error) {
+        console.error(`[${item.link_id}] Error replying to post: ${error}`);
+        // console.error(error);
+        // console.error(error.response.data.error);
+      }
+    }
+
+      try {
+        const comments = new CommentStream(reddit, {
+          subreddit: subredditName,
+          limit: 10,
+          pollTime: 10000,
+        });
+        
+        const submissions = new SubmissionStream(reddit, {
+          subreddit: subredditName,
+          limit: 10,
+          pollTime: 10000,
+        });
+
+        comments.on('item', processItem);
+        submissions.on('item', processItem);
+      } catch (error) {
+        console.error(`Error setting up stream: ${error}`);
+      }
+  } catch (error) {
+    console.error(`Error setting up connection: ${error}`);
+  }
+}
+
+watchSubreddit();
