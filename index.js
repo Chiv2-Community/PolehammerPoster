@@ -4,6 +4,8 @@ import { InboxStream, CommentStream, SubmissionStream } from "snoostorm";;
 import dotenv from 'dotenv';
 import { Configuration, OpenAIApi } from "openai";
 import { readFileSync } from 'fs';
+import { parse } from 'json2csv';
+
 
 dotenv.config();
 
@@ -97,41 +99,56 @@ function weaponTextList(weapons) {
 
 const systemPrompt = readFileSync("system-prompt.txt").toString();
 
-function weaponToStatsPrompt(weapon) {
-return `invisible:
-# ${weapon.name}
-- Damage Type: ${weapon.damageType}
-- One Handed: ${weapon.weaponTypes.includes("One Handed")}
-- Two Handed: ${weapon.weaponTypes.includes("Two Handed")}
-- Attacks:
-  - Averages:
-    - Range: ${(weapon.attacks.slash.range + weapon.attacks.overhead.range + weapon.attacks.stab.range) / 3}j
-    - Alt Range: ${(weapon.attacks.slash.altRange + weapon.attacks.overhead.altRange + weapon.attacks.stab.altRange) / 3}j
-    - Windup: ${(weapon.attacks.slash.light.windup + weapon.attacks.overhead.light.windup + weapon.attacks.stab.light.windup) / 3}ms
-    - Light Damage: ${(weapon.attacks.slash.light.damage + weapon.attacks.overhead.light.damage + weapon.attacks.stab.light.damage) / 3}hp
-    - Heavy Damage: ${(weapon.attacks.slash.heavy.damage + weapon.attacks.overhead.heavy.damage + weapon.attacks.stab.heavy.damage) / 3}hp
-  - Slash:
-    - Range: ${weapon.attacks.slash.range}j
-    - Alt Range: ${weapon.attacks.slash.altRange}j
-    - Windup: ${weapon.attacks.slash.light.windup}ms
-    - Light Damage: ${weapon.attacks.slash.light.damage}hp
-    - Heavy Damage: ${weapon.attacks.slash.heavy.damage}hp
-  - Overhead:
-    - Range: ${weapon.attacks.overhead.range}j
-    - Alt Range: ${weapon.attacks.overhead.altRange}j
-    - Windup: ${weapon.attacks.overhead.light.windup}ms
-    - Light Damage: ${weapon.attacks.overhead.light.damage}hp
-    - Heavy Damage: ${weapon.attacks.overhead.heavy.damage}hp
-  - Stab:
-    - Range: ${weapon.attacks.stab.range}j
-    - Alt Range: ${weapon.attacks.stab.altRange}j
-    - Windup: ${weapon.attacks.stab.light.windup}ms
-    - Light Damage: ${weapon.attacks.stab.light.damage}hp
-    - Heavy Damage: ${weapon.attacks.stab.heavy.damage}hp
-  - Throw:
-    - Legs: ${weapon.rangedAttack.damage.legs}hp
-    - Torso: ${weapon.rangedAttack.damage.torso}hp
-    - Head: ${weapon.rangedAttack.damage.head}hp`
+function generateCsv(weapons) {
+  const fields = [
+    'name', 'damageType', 'handedness', 'averageRange', 'averageAltRange', 'averageWindup',
+    'averageLightDamage', 'averageHeavyDamage', 'slashRange', 'slashAltRange', 'slashWindup',
+    'slashLightDamage', 'slashHeavyDamage', 'overheadRange', 'overheadAltRange', 'overheadWindup',
+    'overheadLightDamage', 'overheadHeavyDamage', 'stabRange', 'stabAltRange', 'stabWindup',
+    'stabLightDamage', 'stabHeavyDamage', 'throwLegs', 'throwTorso', 'throwHead', 'specialAttackWindup', 'specialAttackDamage', 'chargeAttackDamage', 'leapAttackDamage', 'damageMultiplierKnight', 'damageMultiplierFootman'];
+
+  const processedWeapons = weapons.map(weapon => {
+    const damageMultiplierFootman = weapon.damageType === 'Chop' ? 1.175 : weapon.damageType === 'Blunt' ? 1.35 : 1;
+    const damageMultiplierKnight = weapon.damageType === 'Chop' ? 1.25 : weapon.damageType === 'Blunt' ? 1.5 : 1;
+
+    return {
+      name: weapon.name,
+      damageType: weapon.damageType,
+      handedness: weapon.weaponTypes.includes('One Handed') ? 'One Handed' : 'Two Handed',
+      averageRange: ((weapon.attacks.slash.range + weapon.attacks.overhead.range + weapon.attacks.stab.range) / 3).toFixed(1),
+      averageAltRange: ((weapon.attacks.slash.altRange + weapon.attacks.overhead.altRange + weapon.attacks.stab.altRange) / 3).toFixed(1),
+      averageWindup: ((weapon.attacks.slash.light.windup + weapon.attacks.overhead.light.windup + weapon.attacks.stab.light.windup) / 3).toFixed(1),
+      averageLightDamage: ((weapon.attacks.slash.light.damage + weapon.attacks.overhead.light.damage + weapon.attacks.stab.light.damage) / 3).toFixed(1),
+      averageHeavyDamage: ((weapon.attacks.slash.heavy.damage + weapon.attacks.overhead.heavy.damage + weapon.attacks.stab.heavy.damage) / 3).toFixed(1),
+      slashRange: weapon.attacks.slash.range,
+      slashAltRange: weapon.attacks.slash.altRange,
+      slashWindup: weapon.attacks.slash.light.windup,
+      slashLightDamage: weapon.attacks.slash.light.damage,
+      slashHeavyDamage: weapon.attacks.slash.heavy.damage,
+      overheadRange: weapon.attacks.overhead.range,
+      overheadAltRange: weapon.attacks.overhead.altRange,
+      overheadWindup: weapon.attacks.overhead.light.windup,
+      overheadLightDamage: weapon.attacks.overhead.light.damage,
+      overheadHeavyDamage: weapon.attacks.overhead.heavy.damage,
+      stabRange: weapon.attacks.stab.range,
+      stabAltRange: weapon.attacks.stab.altRange,
+      stabWindup: weapon.attacks.stab.light.windup,
+      stabLightDamage: weapon.attacks.stab.light.damage,
+      stabHeavyDamage: weapon.attacks.stab.heavy.damage,
+      throwLegs: weapon.rangedAttack.damage.legs,
+      throwTorso: weapon.rangedAttack.damage.torso,
+      throwHead: weapon.rangedAttack.damage.head,
+      specialAttackWindup: weapon.specialAttack.windup,
+      specialAttackDamage: weapon.specialAttack.damage,
+      chargeAttackDamage: weapon.chargeAttack.damage,
+      leapAttackDamage: weapon.leapAttack.damage,
+      damageMultiplierFootman: damageMultiplierFootman,
+      damageMultiplierKnight: damageMultiplierKnight,
+    };
+  });
+
+  const opts = { fields };
+  return parse(processedWeapons, opts);
 }
 
 function generateReply(aiResponse, weapons) {
@@ -150,7 +167,7 @@ I am a bot. [Contact my creator](https://www.reddit.com/message/compose/?to=Jaco
 async function watchSubreddit() {
   try {
     const weaponsMap = await fetchKeywordsFromGithub();
-    var ignoreWords = ["cavalry sword"]
+    var ignoreWords = ["cavalry sword", "calvary sword"]
     var allKeywords = Object.values(weaponsMap).map((w) => w.keywords).flat();
 
     allKeywords.sort((a, b) => b.length - a.length );
@@ -178,15 +195,11 @@ async function watchSubreddit() {
       var localBody = body
       foundKeywords.forEach(function(keyword) {
         if(localBody.includes(keyword)) {
-          localBody = localBody.replaceAll(keyword, getWeaponFromKeyword(keyword).name);
+          localBody = localBody.replaceAll(keyword, `"${getWeaponFromKeyword(keyword).name}"`);
         }
       });
       return localBody;
     }
-
-
-
-    const polehammerPrompt = weaponToStatsPrompt(weaponsMap["ph"]);
 
     // Stream new posts
     const subreddit = await reddit.getSubreddit(subredditName);
@@ -195,29 +208,30 @@ async function watchSubreddit() {
 
     const processItem = async (item) => {
       if(!item.hasOwnProperty("body")) return;
-      console.log("----------------------------------------")
 
       const body = item.body.toLowerCase();
       const ignore = ignoreWords.some((word) => body.includes(word));
-      if(ignore) return; 
+
+      if(ignore || item.author.name.toLowerCase().includes(REDDIT_USER.toLowerCase()) || item.saved) return;
 
       const found = findAllKeywords(body);
+      console.log("----------------------------------------")
       console.log(`[${item.link_id}] Found keywords: ${found}`);
 
-      if (found.length == 0 || item.saved || item.author.name.toLowerCase().includes(REDDIT_USER.toLowerCase())) return;
+      if (found.length <= 1) return;
 
       try {
         const weapons = getWeaponsFromKeywords(found).concat([weaponsMap["ph"]]);
         console.log(`[${item.link_id}] Replying to post`);
         console.log(`[${item.link_id}] Keywords detected: ${found}`);
         console.log(`[${item.link_id}] Weapons: ${weapons.map((w) => w.name).toString()}`);
-        const weaponPrompts = weapons.map((x) => ({ role: "assistant", content: weaponToStatsPrompt(x) }))
         const ms = [
-              { role: "system", content: systemPrompt }].concat(weaponPrompts).concat([
+              { role: "system", content: systemPrompt }, 
+              { role: "assistant", content: "invisible: " + generateCsv(weapons) },
               { role: "user", content: item.author.name + ": " + replaceKeywordsWithWeaponNames(found, item.body)},
-            ])
+            ]
 
-        console.log(ms)
+        console.log(ms);
         const openaiResponse = await openai.createChatCompletion(
           {
             model: "gpt-3.5-turbo",
@@ -232,8 +246,8 @@ async function watchSubreddit() {
         console.log("\n")
         console.log(reply)
 
-        item.save();
-        await item.reply(reply);
+//        item.save();
+        //await item.reply(reply);
       } catch (error) {
         console.error(`[${item.link_id}] Error replying to post: ${error}`);
         // console.error(error);
