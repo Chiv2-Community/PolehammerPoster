@@ -201,6 +201,8 @@ async function watchSubreddit() {
       return localBody;
     }
 
+    console.log(generateCsv([weaponsMap["ph"], weaponsMap["sw"]]));
+
     // Stream new posts
     const subreddit = await reddit.getSubreddit(subredditName);
     console.log(subreddit);
@@ -218,7 +220,7 @@ async function watchSubreddit() {
       console.log("----------------------------------------")
       console.log(`[${item.link_id}] Found keywords: ${found}`);
 
-      if (found.length <= 1) return;
+      if (found.length <= 1 && !body.includes(REDDIT_USER.toLowerCase())) return;
 
       try {
         const weapons = getWeaponsFromKeywords(found).concat([weaponsMap["ph"]]);

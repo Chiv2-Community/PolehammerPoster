@@ -22,6 +22,7 @@ HP chart:
   Knight: 175
 
 Blunt and Chop damage types have bonus damage vs footman and knight. This will be visible in the CSV data.
+Cut damage type has no damage bonus.
 
 All chop attacks hit multiple targets. 
 All cut attacks hit multiple targets. 
