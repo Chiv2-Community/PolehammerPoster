@@ -26,7 +26,22 @@ const openAiConfiguration = new Configuration({
 });
 const openai = new OpenAIApi(openAiConfiguration);
 
+/*
+function adaptKeywords(keywords) {
+  const lowercaseKeywords = keywords.map(x => x.toLowerCase());
+  return [...new Set(lowercaseKeywords.flatMap(kw => [kw.replaceAll(" ", ""), kw]))];
 
+}
+
+const classes = {
+  "archer": adaptKeywords(["Skirmisher", "Crossbowman", 
+  "vanguard", 
+  "footman", 
+  "knight"
+]);
+const handedness = ["One Handed", "Two Handed"];
+const damageTypes = ["Cut", "Blunt", "Chop"];
+*/
 const subredditName = 'Chivalry2';
 
 async function fetchKeywordsFromGithub() {
@@ -277,7 +292,10 @@ async function watchSubreddit() {
 
         const commentChain = (await findCommentChain(item)).slice(-5);
 
-        const allKeywords = commentChain.flatMap(c => findAllKeywords(c.body.toLowerCase()));
+        const allKeywords = 
+          commentChain
+            .filter(c => c.author.name.toLowerCase() !== REDDIT_USER.toLowerCase())
+            .flatMap(c => findAllKeywords(c.body.toLowerCase()));
 
         const weapons = [...new Set(getWeaponsFromKeywords(allKeywords).map((w) => w.id).concat(["ph"]))].map((w) => weaponsMap[w]);
 
@@ -322,7 +340,7 @@ async function watchSubreddit() {
         );
 
         const aiAnswer = openaiResponse.data.choices[0].message.content
-        const reply = generateReply(aiAnswer, weapons);
+        const reply = generateReply(aiAnswer.replaceAll("\"", ""), weapons);
         console.log(ms)
         console.log("\n")
         console.log(reply)
