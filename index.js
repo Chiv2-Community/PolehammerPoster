@@ -3,7 +3,7 @@ import snoowrap from 'snoowrap';
 import { InboxStream, CommentStream, SubmissionStream } from "snoostorm";;
 import dotenv from 'dotenv';
 import { Configuration, OpenAIApi } from "openai";
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { parse } from 'json2csv';
 
 
@@ -105,7 +105,7 @@ function generateCsv(weapons) {
     'averageLightDamage', 'averageHeavyDamage', 'slashRange', 'slashAltRange', 'slashWindup',
     'slashLightDamage', 'slashHeavyDamage', 'overheadRange', 'overheadAltRange', 'overheadWindup',
     'overheadLightDamage', 'overheadHeavyDamage', 'stabRange', 'stabAltRange', 'stabWindup',
-    'stabLightDamage', 'stabHeavyDamage', 'throwLegs', 'throwTorso', 'throwHead', 'specialAttackWindup', 'specialAttackDamage', 'chargeAttackDamage', 'leapAttackDamage', 'damageMultiplierKnight', 'damageMultiplierFootman'];
+    'stabLightDamage', 'stabHeavyDamage', 'throwDamageLegs', 'throwDamageTorso', 'throwDamageHead', 'specialAttackWindup', 'specialAttackDamage', 'chargeAttackDamage', 'leapAttackDamage', 'damageMultiplierKnight', 'damageMultiplierFootman'];
 
   const processedWeapons = weapons.map(weapon => {
     const damageMultiplierFootman = weapon.damageType === 'Chop' ? 1.175 : weapon.damageType === 'Blunt' ? 1.35 : 1;
@@ -135,9 +135,9 @@ function generateCsv(weapons) {
       stabWindup: weapon.attacks.stab.light.windup,
       stabLightDamage: weapon.attacks.stab.light.damage,
       stabHeavyDamage: weapon.attacks.stab.heavy.damage,
-      throwLegs: weapon.rangedAttack.damage.legs,
-      throwTorso: weapon.rangedAttack.damage.torso,
-      throwHead: weapon.rangedAttack.damage.head,
+      throwDamageLegs: weapon.rangedAttack.damage.legs,
+      throwDamageTorso: weapon.rangedAttack.damage.torso,
+      throwDamageHead: weapon.rangedAttack.damage.head,
       specialAttackWindup: weapon.specialAttack.windup,
       specialAttackDamage: weapon.specialAttack.damage,
       chargeAttackDamage: weapon.chargeAttack.damage,
@@ -153,19 +153,70 @@ function generateCsv(weapons) {
 
 function generateReply(aiResponse, weapons) {
   const polehammerLink = "https://polehammer.net?" + weaponQueryParam(weapons);
-  const weaponsTextList = weaponTextList(weapons)
+
+  var phNetBlurb = ""
+  if(weapons.length === 1) 
+    phNetBlurb = `[Here you can view the stats of the ${weapons[0].name}.](${polehammerLink})  Averages will be displayed by default, but there are more stats available for display.`
+  else {
+    const weaponsTextList = weaponTextList(weapons)
+    phNetBlurb = `[Here you can view a direct comparison between the ${weaponsTextList}.](${polehammerLink})  Averages will be displayed by default, but there are more stats available for display.`
+  }
 
   return `${aiResponse}
 
-[Here you can view a direct comparison between the ${weaponsTextList}.](${polehammerLink})  Averages will be displayed by default, but there are more stats available for display.
+${phNetBlurb}
 
 I am a bot. [Contact my creator](https://www.reddit.com/message/compose/?to=Jacoby6000) if you have any questions or concerns.`
 }
 
+async function findCommentChain(childComment) {
+  if(!childComment.parent_id.startsWith("t1_")) 
+    return [childComment];
+
+  function findCommentChainRecursive(comment, targetId) {
+    if (comment.id === targetId) {
+      return [comment];
+    }
+
+    for (const reply of comment.replies) {
+      const chain = findCommentChainRecursive(reply, targetId);
+      if (chain) {
+        return [comment, ...chain];
+      }
+    }
+
+    return null;
+  }
+
+  const linkId = childComment.link_id;
+  return reddit
+    .getSubmission(linkId.slice(3))
+    .expandReplies({limit: Infinity, depth: Infinity})
+    .then(submission => {
+      for (const topLevelComment of submission.comments) {
+        const result = findCommentChainRecursive(topLevelComment, childComment.id);
+        if(result) {
+          return result;
+        }
+      }
+
+      return null;
+    });
+}
+
+function getMyComments() {
+  return JSON.parse(readFileSync("cache/myComments.json").toString());
+}
+
+function updateMyComments(commentIds) {
+  writeFileSync('cache/myComments.json', JSON.stringify(commentIds));
+}
 
 // Modify the watchSubreddit function to use fetched keywords
 async function watchSubreddit() {
   try {
+    var myComments = getMyComments();
+    console.log(myComments);
     const weaponsMap = await fetchKeywordsFromGithub();
     var ignoreWords = ["cavalry sword", "calvary sword"]
     var allKeywords = Object.values(weaponsMap).map((w) => w.keywords).flat();
@@ -180,7 +231,7 @@ async function watchSubreddit() {
     }
 
     const findAllKeywords = function(body) {
-      var localBody = body
+      var localBody = body.replaceAll("-", " ");
       return allKeywords.filter(function(keyword) {
         if(localBody.includes(keyword)) {
           localBody = localBody.replaceAll(keyword, "");
@@ -201,42 +252,70 @@ async function watchSubreddit() {
       return localBody;
     }
 
-    console.log(generateCsv([weaponsMap["ph"], weaponsMap["sw"]]));
-
-    // Stream new posts
     const subreddit = await reddit.getSubreddit(subredditName);
     console.log(subreddit);
     console.log(allKeywords);
 
     const processItem = async (item) => {
-      if(!item.hasOwnProperty("body")) return;
-
-      const body = item.body.toLowerCase();
-      const ignore = ignoreWords.some((word) => body.includes(word));
-
-      if(ignore || item.author.name.toLowerCase().includes(REDDIT_USER.toLowerCase()) || item.saved) return;
-
-      const found = findAllKeywords(body);
-      console.log("----------------------------------------")
-      console.log(`[${item.link_id}] Found keywords: ${found}`);
-
-      if (found.length <= 1 && !body.includes(REDDIT_USER.toLowerCase())) return;
-
       try {
-        const weapons = getWeaponsFromKeywords(found).concat([weaponsMap["ph"]]);
-        console.log(`[${item.link_id}] Replying to post`);
-        console.log(`[${item.link_id}] Keywords detected: ${found}`);
-        console.log(`[${item.link_id}] Weapons: ${weapons.map((w) => w.name).toString()}`);
+        if(!item.hasOwnProperty("body")) return;
+
+        const body = item.body.toLowerCase();
+        const ignore = ignoreWords.some((word) => body.includes(word));
+
+        if(ignore || item.author.name.toLowerCase().includes(REDDIT_USER.toLowerCase()) || item.saved) return;
+
+        const replyingToMe = 
+          myComments.includes(item.parent_id) || 
+          body.includes(REDDIT_USER.toLowerCase());
+
+        const initialKeywords = findAllKeywords(body);
+        console.log("----------------------------------------")
+        console.log(`[${item.id}] Found keywords: ${initialKeywords}`);
+
+        if (initialKeywords.length <= 1 && !replyingToMe) return;
+
+        const commentChain = (await findCommentChain(item)).slice(-5);
+
+        const allKeywords = commentChain.flatMap(c => findAllKeywords(c.body.toLowerCase()));
+
+        const weapons = [...new Set(getWeaponsFromKeywords(allKeywords).map((w) => w.id).concat(["ph"]))].map((w) => weaponsMap[w]);
+
+        const userMessages = commentChain.map(function(item) { 
+
+          const messageRole = 
+            item.author.name.toLowerCase() === REDDIT_USER.toLowerCase() ? "assistant" : "user";
+          
+          var messageContent = 
+            replaceKeywordsWithWeaponNames(
+              allKeywords, 
+              item.body.toLowerCase()
+            )
+
+          // Remove the footer from the message if assistant, otherwise prefix the username
+          if(messageRole === "assistant")
+            messageContent = messageContent.split("\n").slice(0, -4).join('\n');
+          else 
+            messageContent = item.author.name + ": " + messageContent
+
+
+          return { 
+            role: messageRole, 
+            content: messageContent 
+          }
+        });
+
+        console.log(`[${item.id}] Replying to post`);
+        console.log(`[${item.id}] Keywords detected: ${initialKeywords}`);
+        console.log(`[${item.id}] Weapons: ${weapons.map((w) => w.name).toString()}`);
         const ms = [
               { role: "system", content: systemPrompt }, 
               { role: "assistant", content: "invisible: " + generateCsv(weapons) },
-              { role: "user", content: item.author.name + ": " + replaceKeywordsWithWeaponNames(found, item.body)},
-            ]
+            ].concat(userMessages);
 
-        console.log(ms);
         const openaiResponse = await openai.createChatCompletion(
           {
-            model: "gpt-3.5-turbo",
+            model: "gpt-4",
             messages: ms,
             //max_tokens: 512
           },
@@ -244,30 +323,32 @@ async function watchSubreddit() {
 
         const aiAnswer = openaiResponse.data.choices[0].message.content
         const reply = generateReply(aiAnswer, weapons);
-        console.log(item.body)
+        console.log(ms)
         console.log("\n")
         console.log(reply)
 
         item.save();
-        await item.reply(reply);
+        const replyObject = await item.reply(reply);
+        myComments.push(replyObject.id);
+        updateMyComments(myComments);
       } catch (error) {
-        console.error(`[${item.link_id}] Error replying to post: ${error}`);
-        // console.error(error);
-        // console.error(error.response.data.error);
+        console.error(`[${item.id}] Error replying to post: ${error}`);
+         console.error(error);
+         // console.error(error.response.data.error);
       }
     }
 
       try {
         const comments = new CommentStream(reddit, {
           subreddit: subredditName,
-          limit: 10,
-          pollTime: 10000,
+          limit: 100,
+          pollTime: 60000,
         });
         
         const submissions = new SubmissionStream(reddit, {
           subreddit: subredditName,
-          limit: 10,
-          pollTime: 10000,
+          limit: 100,
+          pollTime: 60000,
         });
 
         comments.on('item', processItem);
