@@ -246,8 +246,8 @@ async function watchSubreddit() {
         console.log("\n")
         console.log(reply)
 
-//        item.save();
-        //await item.reply(reply);
+        item.save();
+        await item.reply(reply);
       } catch (error) {
         console.error(`[${item.link_id}] Error replying to post: ${error}`);
         // console.error(error);
