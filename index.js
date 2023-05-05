@@ -9,6 +9,9 @@ import { parse } from 'json2csv';
 
 dotenv.config();
 
+const footer = 
+  `I am a bot. [Contact my creator](https://www.reddit.com/message/compose/?to=Jacoby6000) if you have any questions or concerns.`
+
 // Load API credentials from environment variables
 const { CLIENT_ID, CLIENT_SECRET, REDDIT_USER, REFRESH_TOKEN, USER_AGENT, GITHUB_TOKEN, OPENAI_API_KEY} = process.env;
 
@@ -26,29 +29,32 @@ const openAiConfiguration = new Configuration({
 });
 const openai = new OpenAIApi(openAiConfiguration);
 
-/*
+
 function adaptKeywords(keywords) {
   const lowercaseKeywords = keywords.map(x => x.toLowerCase());
   return [...new Set(lowercaseKeywords.flatMap(kw => [kw.replaceAll(" ", ""), kw]))];
-
 }
 
-const classes = {
-  "archer": adaptKeywords(["Skirmisher", "Crossbowman", 
-  "vanguard", 
-  "footman", 
-  "knight"
-]);
+const classGroups = {
+  "archer": ["skirmisher", "crossbowman", "longbowman"],
+  "vanguard": ["devastator", "ambusher", "raider"], 
+  "footman": ["poleman", "man at arms", "engineer"], 
+  "knight": ["officer", "guardian", "crusader"]
+};
+
+const subclassKeywords = Object.values(classGroups).flat();
+const classKeywords = Object.keys(classGroups);
+
 const handedness = ["One Handed", "Two Handed"];
 const damageTypes = ["Cut", "Blunt", "Chop"];
-*/
+
 const subredditName = 'Chivalry2';
 
 async function fetchKeywordsFromGithub() {
   const githubApiUrl = 'https://api.github.com/repos/Jacoby6000/polehammer/contents/src/weapons';
   const githubRawBaseUrl = 'https://raw.githubusercontent.com/Jacoby6000/polehammer/main/src/weapons';
 
-  let keywords = {};
+  let weaponsMap = {};
 
   try {
     // Fetch the list of files in the directory
@@ -68,17 +74,31 @@ async function fetchKeywordsFromGithub() {
         console.log(`Fetching JSON file from GitHub: ${file.name}`);
         const response = await axios.get(`${githubRawBaseUrl}/${file.name}`);
         const weapon = response.data;
-        keywords[weapon.id] = weapon;
-        keywords[weapon.id].keywords = [];
-        keywords[weapon.id].keywords.push(weapon.name.toLowerCase());
+        weaponsMap[weapon.id] = weapon;
+        weapon.keywords = [];
+        weapon.keywords.push(weapon.name.toLowerCase());
+
+        weapon.classes = weapon.weaponTypes.map(x => x.toLowerCase()).filter(x => classKeywords.includes(x))
+        weapon.subclasses = weapon.weaponTypes.map(x => x.toLowerCase()).filter(x => subclassKeywords.includes(x))
+        weapon.weaponTypes.forEach(weaponType => {
+          weapon.keywords.push(weaponType);
+        });
         if(weapon.hasOwnProperty("aliases")) {
           weapon.aliases.forEach((alias) => {
-            keywords[weapon.id].keywords.push(alias.toLowerCase());
+            weapon.keywords.push(alias.toLowerCase());
           });
+        } else {
+          weapon.aliases = [];
         }
-        keywords[weapon.id].keywords = [...new Set(keywords[weapon.id].keywords.flatMap((kw) => [kw.replaceAll(" ", ""), kw]))]
+
+        weapon.aliases.push(weapon.name);
+        weapon.aliases = adaptKeywords(weapon.aliases);
+
+        weapon.keywords.push(weapon.damageType);
+        weapon.keywords = adaptKeywords(weapon.keywords);
       } catch (error) {
-        console.error(`Error fetching JSON file from GitHub: ${error}`);
+        console.error(`Error fetching JSON file from GitHub`);
+        console.error(error);
       }
     }
   } catch (error) {
@@ -86,7 +106,68 @@ async function fetchKeywordsFromGithub() {
   }
 
 
-  return keywords;
+  return weaponsMap;
+}
+
+function addAveragesToWeapons(weaponsMap) {
+  Object.keys(weaponsMap).forEach((key) => {
+    const weapon = weaponsMap[key];
+    weapon.average = {
+      range: ((weapon.attacks.slash.range + weapon.attacks.overhead.range + weapon.attacks.stab.range) / 3).toFixed(1),
+      altRange: ((weapon.attacks.slash.altRange + weapon.attacks.overhead.altRange + weapon.attacks.stab.altRange) / 3).toFixed(1),
+      lightDamage: ((weapon.attacks.slash.light.damage + weapon.attacks.overhead.light.damage + weapon.attacks.stab.light.damage) / 3).toFixed(1),
+      heavyDamage: ((weapon.attacks.slash.heavy.damage + weapon.attacks.overhead.heavy.damage + weapon.attacks.stab.heavy.damage) / 3).toFixed(1),
+      windup: ((weapon.attacks.slash.light.windup + weapon.attacks.overhead.light.windup + weapon.attacks.stab.light.windup) / 3).toFixed(1),
+    }
+  });
+}
+
+function averageDamageMultiplier(type) {
+  if(type === "Chop") {
+    return (1 + 1 + 1.175 + 1.25) / 4
+  } else if (type === "Blunt") {
+    return (1 + 1 + 1.35 + 1.5) / 4
+  } else if (type === "Cut") {
+    return 1
+  } else throw new Error("Unknown damage type: " + type);
+}
+
+
+
+function addAveragePercentilesToWeapons(weaponsMap) {
+  const allWeapons = Object.values(weaponsMap)
+
+  const sortedByLightDamage = allWeapons.slice().sort((a, b) => 
+    (a.average.lightDamage * averageDamageMultiplier(a.damageType)) - 
+    (b.average.lightDamage * averageDamageMultiplier(b.damageType))
+  ).map(x => x.id);
+
+  const sortedByHeavyDamage = allWeapons.slice().sort((a, b) =>
+    (a.average.heavyDamage * averageDamageMultiplier(a.damageType)) - 
+    (b.average.heavyDamage * averageDamageMultiplier(b.damageType))
+  ).map(x => x.id);
+
+  const sortedByWindup = allWeapons.slice().sort((a, b) =>
+    a.average.windup - b.average.windup
+  ).map(x => x.id);
+
+  const sortedByAverageRange = allWeapons.slice().sort((a, b) => 
+    ((a.average.range + a.average.altRange) / 2) - 
+    ((b.average.range + b.average.altRange) / 2)
+  ).map(x => x.id);
+
+  function toPercentile(id, sortedIds) {
+    return (sortedIds.indexOf(id) / sortedIds.length).toFixed(2) * 100;
+  }
+
+  Object.keys(weaponsMap).forEach((key) => {
+    weaponsMap[key].percentile = {
+      range: toPercentile(key, sortedByAverageRange),
+      lightDamage: toPercentile(key, sortedByLightDamage),
+      heavyDamage: toPercentile(key, sortedByHeavyDamage),
+      windup: toPercentile(key, sortedByWindup),
+    };
+  });
 }
 
 function weaponQueryParam(weapons) {
@@ -116,7 +197,7 @@ const systemPrompt = readFileSync("system-prompt.txt").toString();
 
 function generateCsv(weapons) {
   const fields = [
-    'name', 'damageType', 'handedness', 'averageRange', 'averageAltRange', 'averageWindup',
+    'name', 'classes', 'subclasses', 'damageType', 'handedness', 'rangePercentile', 'windupPercentile', 'lightDamagePercentile', 'heavyDamagePercentile', 'averageRange', 'averageAltRange', 'averageWindup',
     'averageLightDamage', 'averageHeavyDamage', 'slashRange', 'slashAltRange', 'slashWindup',
     'slashLightDamage', 'slashHeavyDamage', 'overheadRange', 'overheadAltRange', 'overheadWindup',
     'overheadLightDamage', 'overheadHeavyDamage', 'stabRange', 'stabAltRange', 'stabWindup',
@@ -128,13 +209,19 @@ function generateCsv(weapons) {
 
     return {
       name: weapon.name,
+      classes: weapon.classes.join(', '),
+      subclasses: weapon.subclasses.join(', '),
       damageType: weapon.damageType,
       handedness: weapon.weaponTypes.includes('One Handed') ? 'One Handed' : 'Two Handed',
-      averageRange: ((weapon.attacks.slash.range + weapon.attacks.overhead.range + weapon.attacks.stab.range) / 3).toFixed(1),
-      averageAltRange: ((weapon.attacks.slash.altRange + weapon.attacks.overhead.altRange + weapon.attacks.stab.altRange) / 3).toFixed(1),
-      averageWindup: ((weapon.attacks.slash.light.windup + weapon.attacks.overhead.light.windup + weapon.attacks.stab.light.windup) / 3).toFixed(1),
-      averageLightDamage: ((weapon.attacks.slash.light.damage + weapon.attacks.overhead.light.damage + weapon.attacks.stab.light.damage) / 3).toFixed(1),
-      averageHeavyDamage: ((weapon.attacks.slash.heavy.damage + weapon.attacks.overhead.heavy.damage + weapon.attacks.stab.heavy.damage) / 3).toFixed(1),
+      rangePercentile: weapon.percentile.range,
+      lightDamagePercentile: weapon.percentile.lightDamage,
+      heavyDamagePercentile: weapon.percentile.heavyDamage,
+      windupPercentile: weapon.percentile.windup,
+      averageRange: weapon.average.range,
+      averageAltRange: weapon.average.altRange,
+      averageWindup: weapon.average.windup,
+      averageLightDamage: weapon.average.lightDamage,
+      averageHeavyDamage: weapon.average.heavyDamage,
       slashRange: weapon.attacks.slash.range,
       slashAltRange: weapon.attacks.slash.altRange,
       slashWindup: weapon.attacks.slash.light.windup,
@@ -181,7 +268,7 @@ function generateReply(aiResponse, weapons) {
 
 ${phNetBlurb}
 
-I am a bot. [Contact my creator](https://www.reddit.com/message/compose/?to=Jacoby6000) if you have any questions or concerns.`
+${footer}`
 }
 
 async function findCommentChain(childComment) {
@@ -211,6 +298,7 @@ async function findCommentChain(childComment) {
       for (const topLevelComment of submission.comments) {
         const result = findCommentChainRecursive(topLevelComment, childComment.id);
         if(result) {
+          result.unshift(submission);
           return result;
         }
       }
@@ -231,13 +319,19 @@ async function initialize() {
   try {
     const myComments = getMyComments();
     const weaponsMap = await fetchKeywordsFromGithub();
+    addAveragesToWeapons(weaponsMap);
+    addAveragePercentilesToWeapons(weaponsMap);
     const ignoreWords = ["cavalry sword", "calvary sword"]
     const allKeywords = getAllKeywords(weaponsMap);
+    const weaponAliases = getAllWeaponAliases(weaponsMap);
     const subreddit = await reddit.getSubreddit(subredditName);
 
-    processSubredditItems(subreddit, myComments, allKeywords, weaponsMap, ignoreWords);
+    console.log(getWeaponsFromKeyword("vanguard", weaponsMap).map(x => x.name));
+
+    processSubredditItems(subreddit, myComments, allKeywords, weaponAliases, weaponsMap, ignoreWords);
   } catch (error) {
     console.error(`Error setting up connection: ${error}`);
+    console.log(error);
   }
 }
 
@@ -245,16 +339,54 @@ function getAllKeywords(weaponsMap) {
   const allKeywords = Object.values(weaponsMap).map((w) => w.keywords).flat();
   allKeywords.sort((a, b) => b.length - a.length);
 
-  return allKeywords;
+  return [...new Set(allKeywords)];
 }
 
-function getWeaponFromKeyword(keyword, weaponsMap) {
-  return Object.values(weaponsMap).find((weapon) => weapon.keywords.includes(keyword));
+function getAllWeaponAliases(weaponsMap) {
+  const weaponAliases = 
+    Object
+      .values(weaponsMap)
+      .flatMap(w => [w.aliases, w.name])
+      .flat()
+      .filter(x => x);
+
+  weaponAliases.sort((a, b) => b.length - a.length);
+
+  return [...new Set(adaptKeywords(weaponAliases))];
+}
+
+function getWeaponsFromKeyword(keyword, weaponsMap) {
+  return Object.values(weaponsMap).filter(weapon => weapon.keywords.includes(keyword));
+}
+
+function getWeaponFromAlias(alias, weaponsMap) {
+  return Object.values(weaponsMap).find(weapon => weapon.aliases.includes(alias));
+}
+
+function getWeaponsFromAliases(aliases, weaponsMap) {
+  return [...new Set(aliases.map(a => getWeaponFromAlias(a, weaponsMap)).map(x => x.id))].map(id => weaponsMap[id]);
 }
 
 function getWeaponsFromKeywords(keywords, weaponsMap) {
-  return [...new Set(keywords.flatMap((kw) => getWeaponFromKeyword(kw, weaponsMap).id))].map((id) => weaponsMap[id]);
+  return [...new Set(keywords.flatMap(kw => getWeaponsFromKeyword(kw, weaponsMap)).map(x => x.id))].map(id => weaponsMap[id]);
 }
+
+function getWeaponsFromClass(cls, weaponsMap) {
+  return Object.values(weaponsMap).filter(weapon => weapon.classes.includes(cls));
+}
+
+function getWeaponsFromClasses(classes, weaponsMap) {
+  return [...new Set(classes.flatMap(c => getWeaponsFromClass(c, weaponsMap)).map(x => x.id))].map(id => weaponsMap[id]);
+}
+
+function getWeaponsFromSubclass(subclass, weaponsMap) {
+  return Object.values(weaponsMap).filter(weapon => weapon.subclasses.includes(subclass));
+}
+
+function getWeaponsFromSubclasses(subclasses, weaponsMap) {
+  return [...new Set(subclasses.flatMap(c => getWeaponsFromSubclass(c, weaponsMap)).map(x => x.id))].map(id => weaponsMap[id]);
+}
+
 
 function findAllKeywords(body, allKeywords) {
   let localBody = body.replaceAll("-", " ");
@@ -268,17 +400,17 @@ function findAllKeywords(body, allKeywords) {
   });
 }
 
-function replaceKeywordsWithWeaponNames(foundKeywords, body, weaponsMap) {
+function replaceAliasesWithWeaponNames(foundAliases, body, weaponsMap) {
   let localBody = body
-  foundKeywords.forEach((keyword) => {
-    if(localBody.includes(keyword)) {
-      localBody = localBody.replaceAll(keyword, `"${getWeaponFromKeyword(keyword, weaponsMap).name}"`);
+  foundAliases.forEach(alias => {
+    if(localBody.includes(alias)) {
+      localBody = localBody.replaceAll(alias, `"${getWeaponFromAlias(alias, weaponsMap).name}"`);
     }
   });
   return localBody;
 }
 
-async function processSubredditItems(subreddit, myComments, allKeywords, weaponsMap, ignoreWords) {
+async function processSubredditItems(subreddit, myComments, allKeywords, weaponAliases, weaponsMap, ignoreWords) {
   console.log(subreddit);
   console.log(allKeywords);
 
@@ -291,20 +423,49 @@ async function processSubredditItems(subreddit, myComments, allKeywords, weapons
 
       if(ignore || item.author.name.toLowerCase().includes(REDDIT_USER.toLowerCase()) || item.saved) return;
 
-      const replyingToMe = myComments.includes(item.parent_id) || body.includes(REDDIT_USER.toLowerCase());
-      const initialKeywords = findAllKeywords(body, allKeywords);
+
+      const replyingToMe = myComments.includes(item.parent_id.slice(3)) || body.includes(REDDIT_USER.toLowerCase() || body.includes("polehammer poster"));
+      const mentionedWeaponAliases = findAllKeywords(body, weaponAliases);
+
 
       console.log(`-------------------------------`);
-      console.log(`[${item.id}] Found initial keywords: ${initialKeywords}`);
+      console.log(`[${item.id}] Found directly referenced weapons: ${mentionedWeaponAliases}`);
 
-      if (initialKeywords.length <= 1 && !replyingToMe) return;
+      if (mentionedWeaponAliases.length <= 1 && !replyingToMe) return;
 
       const commentChain = (await findCommentChain(item)).slice(-5);
       const chainKeywords = getKeywordsFromCommentChain(commentChain, allKeywords);
-      const weapons = getWeaponsFromKeywords(chainKeywords, weaponsMap);
 
-      const userMessages = generateUserMessages(commentChain, chainKeywords, weaponsMap);
-      await generateAndSendReply(item, initialKeywords, weapons, userMessages, myComments);
+      const weaponsFromAliases = getWeaponsFromAliases(mentionedWeaponAliases, weaponsMap);
+      const maybePolehammer = mentionedWeaponAliases >= 2
+
+      const weapons = 
+        [...new Set(getWeaponsFromKeywords(chainKeywords, weaponsMap)
+                  .concat([weaponsMap["ph"]])
+                  .map(x => x.id))
+        ].map(id => weaponsMap[id]);
+
+
+
+      const userMessages = generateUserMessages(commentChain, mentionedWeaponAliases, weaponsMap);
+
+      var done = false;
+      var removeMessages = 0;
+      while(!done) {
+        try {
+          await generateAndSendReply(item, chainKeywords, weapons, userMessages.slice(removeMessages), myComments);
+          done = true;
+        } catch(error) {
+          console.log(`[${item.id}] Error generating reply: ${error}`);
+          console.log(`[${item.id}] Trying again with less context. ${removeMessages}`);
+          removeMessages++;
+          if(removeMessages > userMessages.length) {
+            done = true;
+            item.reply(`I'm sorry but I cannot generate a response to your question. The input is too long.\n\n${footer}`);
+            item.save();
+          }
+        }
+      }
     } catch (error) {
       console.error(`[${item.id}] Error replying to post: ${error}`);
       console.error(error);
@@ -334,13 +495,45 @@ async function processSubredditItems(subreddit, myComments, allKeywords, weapons
 function getKeywordsFromCommentChain(commentChain, allKeywords) {
   return commentChain
     .filter(c => c.author.name.toLowerCase() !== REDDIT_USER.toLowerCase())
-    .flatMap(c => findAllKeywords(c.body.toLowerCase(), allKeywords));
+    .flatMap(c => {
+      var content = ""
+      if(c.hasOwnProperty("title"))
+        content = "#" + c.title.toLowerCase() + "\n"
+      
+      if(c.hasOwnProperty("selftext"))
+        content = content + c.selftext.toLowerCase()
+      else if(c.hasOwnProperty("body"))
+        content = content + c.body.toLowerCase()
+
+      return findAllKeywords(content, allKeywords)
+    });
 }
 
-function generateUserMessages(commentChain, chainKeywords, weaponsMap) {
+function getClassesFromCommentChain(commentChain) {
+  return commentChain
+    .filter(c => c.author.name.toLowerCase() !== REDDIT_USER.toLowerCase())
+    .flatMap(c => findAllKeywords(c.body.toLowerCase(), classKeywords));
+}
+
+function getSubclassesFromCommentChain(commentChain) {
+  return commentChain
+    .filter(c => c.author.name.toLowerCase() !== REDDIT_USER.toLowerCase())
+    .flatMap(c => findAllKeywords(c.body.toLowerCase(), subclassKeywords));
+}
+
+function generateUserMessages(commentChain, weaponAliases, weaponsMap) {
   return commentChain.map((item) => {
     const messageRole = item.author.name.toLowerCase() === REDDIT_USER.toLowerCase() ? "assistant" : "user";
-    let messageContent = replaceKeywordsWithWeaponNames(chainKeywords, item.body.toLowerCase(), weaponsMap);
+    var content = ""
+    if(item.hasOwnProperty("title"))
+      content = "#" + item.title.toLowerCase() + "\n\n"
+
+    if(item.hasOwnProperty("selftext"))
+      content = content + item.selftext.toLowerCase()
+    else if(item.hasOwnProperty("body"))
+      content = content + item.body.toLowerCase()
+
+    let messageContent = replaceAliasesWithWeaponNames(weaponAliases, content, weaponsMap);
 
     // Remove the footer from the message if assistant, otherwise prefix the username
     if(messageRole === "assistant")
@@ -352,14 +545,14 @@ function generateUserMessages(commentChain, chainKeywords, weaponsMap) {
   });
 }
 
-async function generateAndSendReply(item, initialKeywords, weapons, userMessages, myComments) {
+async function generateAndSendReply(item, detectedKeywords, weapons, userMessages, myComments) {
   console.log(`[${item.id}] Replying to post`);
-  console.log(`[${item.id}] Keywords detected: ${initialKeywords}`);
-  console.log(`[${item.id}] Weapons: ${weapons.map((w) => w.name).toString()}`);
+  console.log(`[${item.id}] Keywords detected: ${detectedKeywords}`);
+  console.log(`[${item.id}] Weapons: ${weapons.map(w => w.name).toString()}`);
 
   const ms = [
         { role: "system", content: systemPrompt }, 
-        { role: "assistant", content: "invisible: " + generateCsv(weapons) },
+        { role: "user", content: "invisible: " + generateCsv(weapons) },
       ].concat(userMessages);
 
   const openaiResponse = await openai.createChatCompletion({
