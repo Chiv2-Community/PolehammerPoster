@@ -227,156 +227,157 @@ function updateMyComments(commentIds) {
   writeFileSync('cache/myComments.json', JSON.stringify(commentIds));
 }
 
-// Modify the watchSubreddit function to use fetched keywords
-async function watchSubreddit() {
+async function initialize() {
   try {
-    var myComments = getMyComments();
-    console.log(myComments);
+    const myComments = getMyComments();
     const weaponsMap = await fetchKeywordsFromGithub();
-    var ignoreWords = ["cavalry sword", "calvary sword"]
-    var allKeywords = Object.values(weaponsMap).map((w) => w.keywords).flat();
-
-    allKeywords.sort((a, b) => b.length - a.length );
-    const getWeaponFromKeyword = function(keyword) {
-      return Object.values(weaponsMap).find((weapon) => weapon.keywords.includes(keyword));
-    }
-
-    const getWeaponsFromKeywords = function(keywords) {
-      return [...new Set(keywords.flatMap((kw) => getWeaponFromKeyword(kw).id))].map((id) => weaponsMap[id]);
-    }
-
-    const findAllKeywords = function(body) {
-      var localBody = body.replaceAll("-", " ");
-      return allKeywords.filter(function(keyword) {
-        if(localBody.includes(keyword)) {
-          localBody = localBody.replaceAll(keyword, "");
-          return true;
-        } else {
-          return false;
-        }
-      });
-    }
-
-    const replaceKeywordsWithWeaponNames = function(foundKeywords, body) {
-      var localBody = body
-      foundKeywords.forEach(function(keyword) {
-        if(localBody.includes(keyword)) {
-          localBody = localBody.replaceAll(keyword, `"${getWeaponFromKeyword(keyword).name}"`);
-        }
-      });
-      return localBody;
-    }
-
+    const ignoreWords = ["cavalry sword", "calvary sword"]
+    const allKeywords = getAllKeywords(weaponsMap);
     const subreddit = await reddit.getSubreddit(subredditName);
-    console.log(subreddit);
-    console.log(allKeywords);
 
-    const processItem = async (item) => {
-      try {
-        if(!item.hasOwnProperty("body")) return;
-
-        const body = item.body.toLowerCase();
-        const ignore = ignoreWords.some((word) => body.includes(word));
-
-        if(ignore || item.author.name.toLowerCase().includes(REDDIT_USER.toLowerCase()) || item.saved) return;
-
-        const replyingToMe = 
-          myComments.includes(item.parent_id) || 
-          body.includes(REDDIT_USER.toLowerCase());
-
-        const initialKeywords = findAllKeywords(body);
-        console.log("----------------------------------------")
-        console.log(`[${item.id}] Found keywords: ${initialKeywords}`);
-
-        if (initialKeywords.length <= 1 && !replyingToMe) return;
-
-        const commentChain = (await findCommentChain(item)).slice(-5);
-
-        const allKeywords = 
-          commentChain
-            .filter(c => c.author.name.toLowerCase() !== REDDIT_USER.toLowerCase())
-            .flatMap(c => findAllKeywords(c.body.toLowerCase()));
-
-        const weapons = [...new Set(getWeaponsFromKeywords(allKeywords).map((w) => w.id).concat(["ph"]))].map((w) => weaponsMap[w]);
-
-        const userMessages = commentChain.map(function(item) { 
-
-          const messageRole = 
-            item.author.name.toLowerCase() === REDDIT_USER.toLowerCase() ? "assistant" : "user";
-          
-          var messageContent = 
-            replaceKeywordsWithWeaponNames(
-              allKeywords, 
-              item.body.toLowerCase()
-            )
-
-          // Remove the footer from the message if assistant, otherwise prefix the username
-          if(messageRole === "assistant")
-            messageContent = messageContent.split("\n").slice(0, -4).join('\n');
-          else 
-            messageContent = item.author.name + ": " + messageContent
-
-
-          return { 
-            role: messageRole, 
-            content: messageContent 
-          }
-        });
-
-        console.log(`[${item.id}] Replying to post`);
-        console.log(`[${item.id}] Keywords detected: ${initialKeywords}`);
-        console.log(`[${item.id}] Weapons: ${weapons.map((w) => w.name).toString()}`);
-        const ms = [
-              { role: "system", content: systemPrompt }, 
-              { role: "assistant", content: "invisible: " + generateCsv(weapons) },
-            ].concat(userMessages);
-
-        const openaiResponse = await openai.createChatCompletion(
-          {
-            model: "gpt-4",
-            messages: ms,
-            //max_tokens: 512
-          },
-        );
-
-        const aiAnswer = openaiResponse.data.choices[0].message.content
-        const reply = generateReply(aiAnswer.replaceAll("\"", ""), weapons);
-        console.log(ms)
-        console.log("\n")
-        console.log(reply)
-
-        item.save();
-        const replyObject = await item.reply(reply);
-        myComments.push(replyObject.id);
-        updateMyComments(myComments);
-      } catch (error) {
-        console.error(`[${item.id}] Error replying to post: ${error}`);
-         console.error(error);
-         // console.error(error.response.data.error);
-      }
-    }
-
-      try {
-        const comments = new CommentStream(reddit, {
-          subreddit: subredditName,
-          limit: 100,
-          pollTime: 60000,
-        });
-        
-        const submissions = new SubmissionStream(reddit, {
-          subreddit: subredditName,
-          limit: 100,
-          pollTime: 60000,
-        });
-
-        comments.on('item', processItem);
-        submissions.on('item', processItem);
-      } catch (error) {
-        console.error(`Error setting up stream: ${error}`);
-      }
+    processSubredditItems(subreddit, myComments, allKeywords, weaponsMap, ignoreWords);
   } catch (error) {
     console.error(`Error setting up connection: ${error}`);
   }
 }
 
-watchSubreddit();
+function getAllKeywords(weaponsMap) {
+  const allKeywords = Object.values(weaponsMap).map((w) => w.keywords).flat();
+  allKeywords.sort((a, b) => b.length - a.length);
+
+  return allKeywords;
+}
+
+function getWeaponFromKeyword(keyword, weaponsMap) {
+  return Object.values(weaponsMap).find((weapon) => weapon.keywords.includes(keyword));
+}
+
+function getWeaponsFromKeywords(keywords, weaponsMap) {
+  return [...new Set(keywords.flatMap((kw) => getWeaponFromKeyword(kw, weaponsMap).id))].map((id) => weaponsMap[id]);
+}
+
+function findAllKeywords(body, allKeywords) {
+  let localBody = body.replaceAll("-", " ");
+  return allKeywords.filter((keyword) => {
+    if(localBody.includes(keyword)) {
+      localBody = localBody.replaceAll(keyword, "");
+      return true;
+    } else {
+      return false;
+    }
+  });
+}
+
+function replaceKeywordsWithWeaponNames(foundKeywords, body, weaponsMap) {
+  let localBody = body
+  foundKeywords.forEach((keyword) => {
+    if(localBody.includes(keyword)) {
+      localBody = localBody.replaceAll(keyword, `"${getWeaponFromKeyword(keyword, weaponsMap).name}"`);
+    }
+  });
+  return localBody;
+}
+
+async function processSubredditItems(subreddit, myComments, allKeywords, weaponsMap, ignoreWords) {
+  console.log(subreddit);
+  console.log(allKeywords);
+
+  const processItem = async (item) => {
+    try {
+      if(!item.hasOwnProperty("body")) return;
+
+      const body = item.body.toLowerCase();
+      const ignore = ignoreWords.some((word) => body.includes(word));
+
+      if(ignore || item.author.name.toLowerCase().includes(REDDIT_USER.toLowerCase()) || item.saved) return;
+
+      const replyingToMe = myComments.includes(item.parent_id) || body.includes(REDDIT_USER.toLowerCase());
+      const initialKeywords = findAllKeywords(body, allKeywords);
+
+      console.log(`-------------------------------`);
+      console.log(`[${item.id}] Found initial keywords: ${initialKeywords}`);
+
+      if (initialKeywords.length <= 1 && !replyingToMe) return;
+
+      const commentChain = (await findCommentChain(item)).slice(-5);
+      const chainKeywords = getKeywordsFromCommentChain(commentChain, allKeywords);
+      const weapons = getWeaponsFromKeywords(chainKeywords, weaponsMap);
+
+      const userMessages = generateUserMessages(commentChain, chainKeywords, weaponsMap);
+      await generateAndSendReply(item, initialKeywords, weapons, userMessages, myComments);
+    } catch (error) {
+      console.error(`[${item.id}] Error replying to post: ${error}`);
+      console.error(error);
+    }
+  }
+
+  try {
+    const comments = new CommentStream(reddit, {
+      subreddit: subredditName,
+      limit: 100,
+      pollTime: 60000,
+    });
+    
+    const submissions = new SubmissionStream(reddit, {
+      subreddit: subredditName,
+      limit: 100,
+      pollTime: 60000,
+    });
+
+    comments.on('item', processItem);
+    submissions.on('item', processItem);
+  } catch (error) {
+    console.error(`Error setting up stream: ${error}`);
+  }
+}
+
+function getKeywordsFromCommentChain(commentChain, allKeywords) {
+  return commentChain
+    .filter(c => c.author.name.toLowerCase() !== REDDIT_USER.toLowerCase())
+    .flatMap(c => findAllKeywords(c.body.toLowerCase(), allKeywords));
+}
+
+function generateUserMessages(commentChain, chainKeywords, weaponsMap) {
+  return commentChain.map((item) => {
+    const messageRole = item.author.name.toLowerCase() === REDDIT_USER.toLowerCase() ? "assistant" : "user";
+    let messageContent = replaceKeywordsWithWeaponNames(chainKeywords, item.body.toLowerCase(), weaponsMap);
+
+    // Remove the footer from the message if assistant, otherwise prefix the username
+    if(messageRole === "assistant")
+      messageContent = messageContent.split("\n").slice(0, -4).join('\n');
+    else 
+      messageContent = item.author.name + ": " + messageContent
+
+    return { role: messageRole, content: messageContent }
+  });
+}
+
+async function generateAndSendReply(item, initialKeywords, weapons, userMessages, myComments) {
+  console.log(`[${item.id}] Replying to post`);
+  console.log(`[${item.id}] Keywords detected: ${initialKeywords}`);
+  console.log(`[${item.id}] Weapons: ${weapons.map((w) => w.name).toString()}`);
+
+  const ms = [
+        { role: "system", content: systemPrompt }, 
+        { role: "assistant", content: "invisible: " + generateCsv(weapons) },
+      ].concat(userMessages);
+
+  const openaiResponse = await openai.createChatCompletion({
+    model: "gpt-4",
+    messages: ms,
+  });
+
+  const aiAnswer = openaiResponse.data.choices[0].message.content
+  const reply = generateReply(aiAnswer.replaceAll("\"", ""), weapons);
+
+  console.log(ms);
+  console.log("\n");
+  console.log(reply);
+
+  item.save();
+  const replyObject = await item.reply(reply);
+  myComments.push(replyObject.id);
+  updateMyComments(myComments);
+}
+
+initialize();
