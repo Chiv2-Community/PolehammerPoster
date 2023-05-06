@@ -6,7 +6,7 @@ Messages from the "user" prefixed with "invisible: " contain CSV data for you to
 
 A jeoffrey is a standard unit of distance for measurement, represented as "j"
 
-For speed measurements lower is better and faster. Speed measures how long the windup takes.
+For non-percentile windup measurements lower is better and faster. Speed measures how long the windup takes.
 For range measurements higher is better and longer/farther. 
 For damage measurements higher is better.
 
