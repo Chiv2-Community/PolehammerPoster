@@ -7,9 +7,9 @@ comment chain being addressed.
 1. Mention 2 weapons by name or one of their aliases as defined in the [polehammer.net weapon data](https://github.com/aardvarkk/polehammer/tree/main/src/weapons).
 2. Reply to a comment made by PolehammerPoster
 2. Mention PolehammerPoster by name
-  * /u/polehammerposter
-  * Polehammer poster
-  * Polehammerposter
+   * /u/polehammerposter
+   * Polehammer poster
+   * Polehammerposter
 
 # PolehammerPoster posted an incorrect stat.
 There are a couple of reasons an incorrect stat may be posted.
