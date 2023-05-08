@@ -10,7 +10,9 @@ import { parse } from 'json2csv';
 dotenv.config();
 
 const footer = 
-  `I am a bot. You can get my attention at any time by mentioning me by name. I will interject at most once per comment chain unless I am being replied to or I am mentioned. [Contact my creator](https://www.reddit.com/message/compose/?to=Jacoby6000) if you have any questions or concerns.`
+  `^(I am a bot. You can get my attention at any time by mentioning me by name. I will interject at most once per comment chain unless I am being replied to or I am mentioned, and sometimes I may get things wrong. You can always ask me clarifying questions and state corrections. [Contact my creator](https://www.reddit.com/message/compose/?to=Jacoby6000) if you have any questions or concerns.)
+
+^(This bot uses unofficial data and is not affiliated with Torn Banner in any way.)`
 
 // Load API credentials from environment variables
 const { CLIENT_ID, CLIENT_SECRET, REDDIT_USER, REFRESH_TOKEN, USER_AGENT, GITHUB_TOKEN, OPENAI_API_KEY} = process.env;
@@ -217,39 +219,39 @@ function generateCsv(weapons) {
       subclasses: weapon.subclasses.join(', '),
       damageType: weapon.damageType,
       handedness: weapon.weaponTypes.includes('One Handed') ? 'One Handed' : 'Two Handed',
-      rangePercentile: weapon.percentile.range.toFixed(1),
-      lightDamagePercentile: weapon.percentile.lightDamage.toFixed(1),
-      heavyDamagePercentile: weapon.percentile.heavyDamage.toFixed(1),
-      windupPercentile: weapon.percentile.windup.toFixed(1),
-      averageRange: weapon.average.range.toFixed(1),
-      averageAltRange: weapon.average.altRange.toFixed(1),
-      averageWindup: weapon.average.windup.toFixed(1),
-      averageLightDamage: weapon.average.lightDamage.toFixed(1),
-      averageHeavyDamage: weapon.average.heavyDamage.toFixed(1),
-      slashRange: weapon.attacks.slash.range.toFixed(1),
-      slashAltRange: weapon.attacks.slash.altRange.toFixed(1),
-      slashWindup: weapon.attacks.slash.light.windup.toFixed(1),
-      slashLightDamage: weapon.attacks.slash.light.damage.toFixed(1),
-      slashHeavyDamage: weapon.attacks.slash.heavy.damage.toFixed(1),
-      overheadRange: weapon.attacks.overhead.range.toFixed(1),
-      overheadAltRange: weapon.attacks.overhead.altRange.toFixed(1),
-      overheadWindup: weapon.attacks.overhead.light.windup.toFixed(1),
-      overheadLightDamage: weapon.attacks.overhead.light.damage.toFixed(1),
-      overheadHeavyDamage: weapon.attacks.overhead.heavy.damage.toFixed(1),
-      stabRange: weapon.attacks.stab.range.toFixed(1),
-      stabAltRange: weapon.attacks.stab.altRange.toFixed(1),
-      stabWindup: weapon.attacks.stab.light.windup.toFixed(1),
-      stabLightDamage: weapon.attacks.stab.light.damage.toFixed(1),
-      stabHeavyDamage: weapon.attacks.stab.heavy.damage.toFixed(1),
-      throwDamageLegs: weapon.rangedAttack.damage.legs.toFixed(1),
-      throwDamageTorso: weapon.rangedAttack.damage.torso.toFixed(1),
-      throwDamageHead: weapon.rangedAttack.damage.head.toFixed(1),
-      specialAttackWindup: weapon.specialAttack.windup.toFixed(1),
-      specialAttackDamage: weapon.specialAttack.damage.toFixed(1),
-      chargeAttackDamage: weapon.chargeAttack.damage.toFixed(1),
-      leapAttackDamage: weapon.leapAttack.damage.toFixed(1),
-      damageMultiplierFootman: damageMultiplierFootman.toFixed(1),
-      damageMultiplierKnight: damageMultiplierKnight.toFixed(1),
+      rangePercentile: weapon.percentile.range.toFixed(1).replace(/\.0+$/, ''),
+      lightDamagePercentile: weapon.percentile.lightDamage.toFixed(1).replace(/\.0+$/, ''),
+      heavyDamagePercentile: weapon.percentile.heavyDamage.toFixed(1).replace(/\.0+$/, ''),
+      windupPercentile: weapon.percentile.windup.toFixed(1).replace(/\.0+$/, ''),
+      averageRange: weapon.average.range.toFixed(1).replace(/\.0+$/, ''),
+      averageAltRange: weapon.average.altRange.toFixed(1).replace(/\.0+$/, ''),
+      averageWindup: weapon.average.windup.toFixed(1).replace(/\.0+$/, ''),
+      averageLightDamage: weapon.average.lightDamage.toFixed(1).replace(/\.0+$/, ''),
+      averageHeavyDamage: weapon.average.heavyDamage.toFixed(1).replace(/\.0+$/, ''),
+      slashRange: weapon.attacks.slash.range.toFixed(1).replace(/\.0+$/, ''),
+      slashAltRange: weapon.attacks.slash.altRange.toFixed(1).replace(/\.0+$/, ''),
+      slashWindup: weapon.attacks.slash.light.windup.toFixed(1).replace(/\.0+$/, ''),
+      slashLightDamage: weapon.attacks.slash.light.damage.toFixed(1).replace(/\.0+$/, ''),
+      slashHeavyDamage: weapon.attacks.slash.heavy.damage.toFixed(1).replace(/\.0+$/, ''),
+      overheadRange: weapon.attacks.overhead.range.toFixed(1).replace(/\.0+$/, ''),
+      overheadAltRange: weapon.attacks.overhead.altRange.toFixed(1).replace(/\.0+$/, ''),
+      overheadWindup: weapon.attacks.overhead.light.windup.toFixed(1).replace(/\.0+$/, ''),
+      overheadLightDamage: weapon.attacks.overhead.light.damage.toFixed(1).replace(/\.0+$/, ''),
+      overheadHeavyDamage: weapon.attacks.overhead.heavy.damage.toFixed(1).replace(/\.0+$/, ''),
+      stabRange: weapon.attacks.stab.range.toFixed(1).replace(/\.0+$/, ''),
+      stabAltRange: weapon.attacks.stab.altRange.toFixed(1).replace(/\.0+$/, ''),
+      stabWindup: weapon.attacks.stab.light.windup.toFixed(1).replace(/\.0+$/, ''),
+      stabLightDamage: weapon.attacks.stab.light.damage.toFixed(1).replace(/\.0+$/, ''),
+      stabHeavyDamage: weapon.attacks.stab.heavy.damage.toFixed(1).replace(/\.0+$/, ''),
+      throwDamageLegs: weapon.rangedAttack.damage.legs.toFixed(1).replace(/\.0+$/, ''),
+      throwDamageTorso: weapon.rangedAttack.damage.torso.toFixed(1).replace(/\.0+$/, ''),
+      throwDamageHead: weapon.rangedAttack.damage.head.toFixed(1).replace(/\.0+$/, ''),
+      specialAttackWindup: weapon.specialAttack.windup.toFixed(1).replace(/\.0+$/, ''),
+      specialAttackDamage: weapon.specialAttack.damage.toFixed(1).replace(/\.0+$/, ''),
+      chargeAttackDamage: weapon.chargeAttack.damage.toFixed(1).replace(/\.0+$/, ''),
+      leapAttackDamage: weapon.leapAttack.damage.toFixed(1).replace(/\.0+$/, ''),
+      damageMultiplierFootman: damageMultiplierFootman.toString().replace(/\.0+$/, ''),
+      damageMultiplierKnight: damageMultiplierKnight.toString().replace(/\.0+$/, ''),
     };
   });
 
@@ -265,18 +267,20 @@ function generateReply(aiResponse, weapons) {
     phNetBlurb = `[Here you can view the stats of the ${weapons[0].name}.](${polehammerLink})  Averages will be displayed by default, but there are more stats available for display.`
   else {
     const weaponsTextList = weaponTextList(weapons)
-    phNetBlurb = `[Here you can view a direct comparison between the ${weaponsTextList}.](${polehammerLink})  Averages will be displayed by default, but there are more stats available for display.`
+    phNetBlurb = `You can view a direct comparison between the mentioned weapons [here](${polehammerLink}).  Averages will be displayed by default, but there are more stats available for display.`
   }
 
   return `${aiResponse}
 
-${phNetBlurb}
+___
+
+^(${phNetBlurb})
 
 ${footer}`
 }
 
 async function findCommentChain(childComment) {
-  if(!childComment.parent_id.startsWith("t1_")) 
+  if(!childComment.hasOwnProperty("parent_id") || !childComment.parent_id.startsWith("t1_")) 
     return [childComment];
 
   function findCommentChainRecursive(comment, targetId) {
@@ -323,6 +327,10 @@ function getRepliedTo() {
   return JSON.parse(readFileSync("cache/repliedTo.json").toString());
 }
 
+function getBanlist() {
+  return JSON.parse(readFileSync("cache/banlist.json").toString());
+}
+
 function updateRepliedTo(commentIds) {
   writeFileSync('cache/repliedTo.json', JSON.stringify(commentIds));
 }
@@ -331,6 +339,7 @@ async function initialize() {
   try {
     const myComments = getMyComments();
     const repliedTo = getRepliedTo();
+    const banlist = getBanlist();
     const weaponsMap = await fetchKeywordsFromGithub();
     addAveragesToWeapons(weaponsMap);
     addAveragePercentilesToWeapons(weaponsMap);
@@ -341,7 +350,7 @@ async function initialize() {
 
     console.log(getWeaponsFromKeyword("vanguard", weaponsMap).map(x => x.name));
 
-    processSubredditItems(subreddit, myComments, repliedTo, allKeywords, weaponAliases, weaponsMap, ignoreWords);
+    processSubredditItems(subreddit, myComments, repliedTo, allKeywords, weaponAliases, weaponsMap, ignoreWords, banlist);
   } catch (error) {
     console.error(`Error setting up connection: ${error}`);
     console.log(error);
@@ -423,7 +432,7 @@ function replaceAliasesWithWeaponNames(foundAliases, body, weaponsMap) {
   return localBody;
 }
 
-async function processSubredditItems(subreddit, myComments, repliedTo, allKeywords, weaponAliases, weaponsMap, ignoreWords) {
+async function processSubredditItems(subreddit, myComments, repliedTo, allKeywords, weaponAliases, weaponsMap, ignoreWords, banlist) {
   console.log(subreddit);
   console.log(allKeywords);
 
@@ -436,9 +445,16 @@ async function processSubredditItems(subreddit, myComments, repliedTo, allKeywor
         body += `#${item.title}\n\n${item.selftext ? item.selftext : ""}`;
 
       const ignore = ignoreWords.some((word) => body.includes(word));
+      const banned = banlist.includes(item.author.name.toLowerCase());
       const parentId = item.parent_id ? item.parent_id.slice(3) : "nul"
+
       // exit early if we've already seen this post, it contains specific ignore keywords, or if it is one of our own posts.
       if(ignore || item.author.name.toLowerCase().includes(REDDIT_USER.toLowerCase()) || item.saved) return;
+
+      if(banned) {
+        console.log("Ignoring post from banned user: " + item.author.name);
+        return;
+      }
 
 
       const replyingToMe = myComments.includes(parentId) || body.includes(REDDIT_USER.toLowerCase() || body.includes("polehammer poster"));
@@ -578,11 +594,16 @@ function generateUserMessages(commentChain, weaponAliases, weaponsMap) {
 
     // Remove the footer from the message if assistant, otherwise prefix the username
     if(messageRole === "assistant")
-      messageContent = messageContent.split("\n").slice(0, -4).join('\n');
+      if(messageContent.includes("___"))
+        // current messages 
+        messageContent = messageContent.split("___")[0]
+      else
+        // legacy messages
+        messageContent = messageContent.split("\n").slice(0, -4).join('\n');
     else 
       messageContent = item.author.name + ": " + messageContent
 
-    return { role: messageRole, content: messageContent }
+    return { role: messageRole, content: messageContent.trim() }
   });
 }
 
@@ -591,10 +612,9 @@ async function generateAndSendReply(item, detectedKeywords, weapons, userMessage
   console.log(`[${item.id}] Keywords detected: ${detectedKeywords}`);
   console.log(`[${item.id}] Weapons: ${weapons.map(w => w.name).toString()}`);
 
-  const ms = [
-        { role: "system", content: systemPrompt }, 
-        { role: "user", content: "invisible: " + generateCsv(weapons) },
-      ].concat(userMessages);
+  const ms = 
+    [{ role: "system", content: systemPrompt + generateCsv(weapons)}]
+      .concat(userMessages);
 
   const openaiResponse = await openai.createChatCompletion({
     model: "gpt-4",
