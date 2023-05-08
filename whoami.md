@@ -18,6 +18,9 @@ Examples:
 * I wonder if the Executioner's Axe or the Highland Sword does more damage.
 * Does the knife have more range than the mallet?
 
+# What kinds of questions can PolehammerPoster not answer?
+PolehammerPoster is not aware of the combat mechanics in the game.  The language model's training set gets cut off in March 2021, and as such does not know much about chivalry 2.  It sometimes has some insight in to how game mechanics work, but this is purely happenstance and likely carryover from chivalry 1 knowledge.  In the future we may teach it the combat mechanics so people can ask for help with general combat.
+
 # PolehammerPoster posted an incorrect stat.
 There are a couple of reasons an incorrect stat may be posted.
 1. The stat is wrong on [polehammer.net](https://polehammer.net). Please submit

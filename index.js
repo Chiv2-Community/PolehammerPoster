@@ -9,10 +9,18 @@ import { parse } from 'json2csv';
 
 dotenv.config();
 
-const footer = 
-  `^(I am a bot. You can get my attention at any time by mentioning me by name. I will interject at most once per comment chain unless I am being replied to or I am mentioned, and sometimes I may get things wrong. You can always ask me clarifying questions and state corrections. [Contact my creator](https://www.reddit.com/message/compose/?to=Jacoby6000) if you have any questions or concerns.)
+function generateFooter(weapons) {
+  const polehammerLink = "https://polehammer.net?" + weaponQueryParam(weapons);
 
-^(This bot uses unofficial data and is not affiliated with Torn Banner in any way.)`
+  var phNetBlurb = ""
+  if(weapons.length === 1) 
+    phNetBlurb = `[Here you can view the stats of the ${weapons[0].name}.](${polehammerLink})`
+  else {
+    phNetBlurb = `You can view a direct comparison between the mentioned weapons [here](${polehammerLink}).`
+  }
+
+  return `^(I am a bot. ${phNetBlurb} You can get my attention at any time by mentioning me by name. Learn more [here](https://github.com/Chiv2-Community/PolehammerPoster/blob/main/whoami.md). This bot uses unofficial data and is not affiliated with Torn Banner in any way.)`
+}
 
 // Load API credentials from environment variables
 const { CLIENT_ID, CLIENT_SECRET, REDDIT_USER, REFRESH_TOKEN, USER_AGENT, GITHUB_TOKEN, OPENAI_API_KEY} = process.env;
@@ -260,23 +268,12 @@ function generateCsv(weapons) {
 }
 
 function generateReply(aiResponse, weapons) {
-  const polehammerLink = "https://polehammer.net?" + weaponQueryParam(weapons);
-
-  var phNetBlurb = ""
-  if(weapons.length === 1) 
-    phNetBlurb = `[Here you can view the stats of the ${weapons[0].name}.](${polehammerLink})  Averages will be displayed by default, but there are more stats available for display.`
-  else {
-    const weaponsTextList = weaponTextList(weapons)
-    phNetBlurb = `You can view a direct comparison between the mentioned weapons [here](${polehammerLink}).  Averages will be displayed by default, but there are more stats available for display.`
-  }
 
   return `${aiResponse}
 
 ___
 
-^(${phNetBlurb})
-
-${footer}`
+${generateFooter(weapons)}`
 }
 
 async function findCommentChain(childComment) {
@@ -518,7 +515,7 @@ async function processSubredditItems(subreddit, myComments, repliedTo, allKeywor
           removeMessages++;
           if(removeMessages > userMessages.length) {
             done = true;
-            item.reply(`I'm sorry but I cannot generate a response to your question. The input is too long.\n\n${footer}`);
+            item.reply(`I'm sorry but I cannot generate a response to your question. The input is too long.\n\n${generateFooter(weapons)}`);
             item.save();
           }
         }
