@@ -173,15 +173,19 @@ function addAveragePercentilesToWeapons(weaponsMap) {
   }
 
   Object.keys(weaponsMap).forEach((key) => {
+    const rangePercentile = toPercentile(key, sortedByAverageRange);
+    const lightDamagePercentile = toPercentile(key, sortedByLightDamage);
+    const heavyDamagePercentile = toPercentile(key, sortedByHeavyDamage);
+    const windupPercentile = toPercentile(key, sortedByWindup);
+
     weaponsMap[key].percentile = {
-      range: toPercentile(key, sortedByAverageRange),
-      lightDamage: toPercentile(key, sortedByLightDamage),
-      heavyDamage: toPercentile(key, sortedByHeavyDamage),
-      windup: toPercentile(key, sortedByWindup),
+      range: rangePercentile,
+      lightDamage: lightDamagePercentile,
+      heavyDamage: heavyDamagePercentile,
+      windup: windupPercentile,
+      average: (rangePercentile + lightDamagePercentile + heavyDamagePercentile + windupPercentile) / 4
     };
   });
-  console.log(sortedByAverageRange);
-  console.log(sortedByAverageRange.map(x => weaponsMap[x].name +": " + weaponsMap[x].average.range));
 }
 
 function weaponQueryParam(weapons) {
@@ -211,11 +215,18 @@ const systemPrompt = readFileSync("system-prompt.txt").toString();
 
 function generateCsv(weapons) {
   const fields = [
-    'name', 'classes', 'subclasses', 'damageType', 'handedness', 'rangePercentile', 'windupPercentile', 'lightDamagePercentile', 'heavyDamagePercentile', 'averageRange', 'averageAltRange', 'averageWindup',
-    'averageLightDamage', 'averageHeavyDamage', 'slashRange', 'slashAltRange', 'slashWindup',
-    'slashLightDamage', 'slashHeavyDamage', 'overheadRange', 'overheadAltRange', 'overheadWindup',
-    'overheadLightDamage', 'overheadHeavyDamage', 'stabRange', 'stabAltRange', 'stabWindup',
-    'stabLightDamage', 'stabHeavyDamage', 'throwDamageLegs', 'throwDamageTorso', 'throwDamageHead', 'specialAttackWindup', 'specialAttackDamage', 'chargeAttackDamage', 'leapAttackDamage', 'damageMultiplierKnight', 'damageMultiplierFootman'];
+    'name', 'classes', 'subclasses', 'damageType', 'handedness', 'averageRange', 
+    'averageAltRange', 'averageWindup', 'averageLightDamage', 
+    'averageHeavyDamage', 'slashRange', 'slashAltRange', 'slashWindup', 
+    'slashLightDamage', 'slashHeavyDamage', 'overheadRange', 'overheadAltRange', 
+    'overheadWindup', 'overheadLightDamage', 'overheadHeavyDamage', 'stabRange', 
+    'stabAltRange', 'stabWindup', 'stabLightDamage', 'stabHeavyDamage', 
+    'throwDamageLegs', 'throwDamageTorso', 'throwDamageHead', 
+    'specialAttackWindup', 'specialAttackDamage', 'chargeAttackDamage', 
+    'leapAttackDamage', 'damageMultiplierKnight', 'damageMultiplierFootman', 
+    'rangePercentile', 'windupPercentile', 'lightDamagePercentile', 
+    'heavyDamagePercentile', 'averagePercentile',
+  ];
 
   const processedWeapons = weapons.map(weapon => {
     const damageMultiplierFootman = weapon.damageType === 'Chop' ? 1.175 : weapon.damageType === 'Blunt' ? 1.35 : 1;
@@ -231,6 +242,7 @@ function generateCsv(weapons) {
       lightDamagePercentile: weapon.percentile.lightDamage.toFixed(1).replace(/\.0+$/, ''),
       heavyDamagePercentile: weapon.percentile.heavyDamage.toFixed(1).replace(/\.0+$/, ''),
       windupPercentile: weapon.percentile.windup.toFixed(1).replace(/\.0+$/, ''),
+      averagePercentile: weapon.percentile.average.toFixed(1).replace(/\.0+$/, ''),
       averageRange: weapon.average.range.toFixed(1).replace(/\.0+$/, ''),
       averageAltRange: weapon.average.altRange.toFixed(1).replace(/\.0+$/, ''),
       averageWindup: weapon.average.windup.toFixed(1).replace(/\.0+$/, ''),
@@ -325,7 +337,7 @@ function getRepliedTo() {
 }
 
 function getBanlist() {
-  return JSON.parse(readFileSync("cache/banlist.json").toString());
+  return JSON.parse(readFileSync("cache/banlist.json").toString()).map(x => x.toLowerCase());
 }
 
 function updateRepliedTo(commentIds) {
@@ -345,7 +357,10 @@ async function initialize() {
     const weaponAliases = getAllWeaponAliases(weaponsMap);
     const subreddit = await reddit.getSubreddit(subredditName);
 
-    console.log(getWeaponsFromKeyword("vanguard", weaponsMap).map(x => x.name));
+    const weapons = Object.values(weaponsMap)
+
+    weapons.sort((a, b) => a.percentile.average - b.percentile.average);
+    console.log(weapons);
 
     processSubredditItems(subreddit, myComments, repliedTo, allKeywords, weaponAliases, weaponsMap, ignoreWords, banlist);
   } catch (error) {
