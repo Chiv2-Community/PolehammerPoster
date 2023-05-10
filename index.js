@@ -16,10 +16,10 @@ function generateFooter(weapons) {
   if(weapons.length === 1) 
     phNetBlurb = `[Here you can view the stats of the ${weapons[0].name}.](${polehammerLink})`
   else {
-    phNetBlurb = `You can view a direct comparison between the mentioned weapons [here](${polehammerLink}).`
+    phNetBlurb = `You can see a visual comparison between the mentioned weapons [here](${polehammerLink}).`
   }
 
-  return `^(I am a bot. ${phNetBlurb} You can get my attention at any time by mentioning me by name. Learn more [here](https://github.com/Chiv2-Community/PolehammerPoster/blob/main/whoami.md). This bot uses unofficial data and is not affiliated with Torn Banner in any way.)`
+  return `${phNetBlurb}\n\n^(I am a bot.  You can get my attention at any time by mentioning me by name. Learn more [here](https://github.com/Chiv2-Community/PolehammerPoster/blob/main/whoami.md). This bot uses unofficial data and is not affiliated with Torn Banner in any way.)`
 }
 
 // Load API credentials from environment variables
@@ -478,7 +478,8 @@ async function processSubredditItems(subreddit, myComments, repliedTo, allKeywor
 
 
       // exit early if less than two weapons are mentioned, unless I am mentioned or replied to
-      if (mentionedWeaponAliases.length <= 1 && !replyingToMe) return;
+      //if (mentionedWeaponAliases.length <= 1 && !replyingToMe) return;
+      if (!replyingToMe) return;
 
       const fullCommentChain = await findCommentChain(item)      
       const repliedAlready = fullCommentChain.some(c => repliedTo.includes(c.id))
