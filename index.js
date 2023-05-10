@@ -462,6 +462,13 @@ async function processSubredditItems(subreddit, myComments, repliedTo, allKeywor
 
       // exit early if we've already seen this post, it contains specific ignore keywords, or if it is one of our own posts.
       if(ignore || item.author.name.toLowerCase().includes(REDDIT_USER.toLowerCase()) || item.saved) return;
+      
+      const replyingToMe = myComments.includes(parentId) || body.includes(REDDIT_USER.toLowerCase() || body.includes("polehammer poster"));
+      const mentionedWeaponAliases = findAllKeywords(body, weaponAliases);
+
+
+      console.log(`-------------------------------`);
+      console.log(`[${item.id}] Found directly referenced weapons: ${mentionedWeaponAliases}`);
 
       if(banned) {
         console.log("Ignoring post from banned user: " + item.author.name);
@@ -469,12 +476,6 @@ async function processSubredditItems(subreddit, myComments, repliedTo, allKeywor
       }
 
 
-      const replyingToMe = myComments.includes(parentId) || body.includes(REDDIT_USER.toLowerCase() || body.includes("polehammer poster"));
-      const mentionedWeaponAliases = findAllKeywords(body, weaponAliases);
-
-
-      console.log(`-------------------------------`);
-      console.log(`[${item.id}] Found directly referenced weapons: ${mentionedWeaponAliases}`);
 
       // exit early if less than two weapons are mentioned, unless I am mentioned or replied to
       if (mentionedWeaponAliases.length <= 1 && !replyingToMe) return;
