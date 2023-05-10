@@ -212,6 +212,7 @@ function weaponTextList(weapons) {
 }
 
 const systemPrompt = readFileSync("system-prompt.txt").toString();
+const classifierPrompt = readFileSync("comment-classifier.txt").toString();
 
 function generateCsv(weapons) {
   const fields = [
@@ -476,10 +477,7 @@ async function processSubredditItems(subreddit, myComments, repliedTo, allKeywor
       }
 
 
-
-      // exit early if less than two weapons are mentioned, unless I am mentioned or replied to
-      //if (mentionedWeaponAliases.length <= 1 && !replyingToMe) return;
-      if (!replyingToMe) return;
+      if (mentionedWeaponAliases.length <= 1 && comparisonRequested(body) && !replyingToMe) return;
 
       const fullCommentChain = await findCommentChain(item)      
       const repliedAlready = fullCommentChain.some(c => repliedTo.includes(c.id))
@@ -619,6 +617,22 @@ function generateUserMessages(commentChain, weaponAliases, weaponsMap) {
 
     return { role: messageRole, content: messageContent.trim() }
   });
+}
+
+
+async function comparisonRequested(content) {
+  const ms = [
+      { role: "system", content: classifierPrompt},
+      { role: "user", content: message}
+    ];
+
+  const openaiResponse = await openai.createChatCompletion({
+    model: "gpt-3.5",
+    messages: ms,
+    max_tokens: 1
+  });
+
+  return openaiResponse.data.choices[0].message.content.toLowerCase() === "y";
 }
 
 async function generateAndSendReply(item, detectedKeywords, weapons, userMessages) {
