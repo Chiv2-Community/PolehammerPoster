@@ -321,7 +321,7 @@ async function findCommentChain(childComment) {
         }
       }
 
-      return null;
+      return [submission];
     });
 }
 
@@ -477,7 +477,13 @@ async function processSubredditItems(subreddit, myComments, repliedTo, allKeywor
       }
 
 
-      if (mentionedWeaponAliases.length <= 1 && comparisonRequested(body) && !replyingToMe) return;
+      if(!replyingToMe) {
+        if (mentionedWeaponAliases.length <= 1) return;
+        if (!(await comparisonRequested(body))) return;
+        console.log(`[${item.id}] Comparison requested`);
+      } else {
+        console.log(`[${item.id}] Replied to me`);
+      }
 
       const fullCommentChain = await findCommentChain(item)      
       const repliedAlready = fullCommentChain.some(c => repliedTo.includes(c.id))
@@ -489,9 +495,7 @@ async function processSubredditItems(subreddit, myComments, repliedTo, allKeywor
       }
 
       const commentChain = fullCommentChain.slice(-5);
-
       const chainKeywords = getKeywordsFromCommentChain(commentChain, allKeywords);
-
       const weaponsFromAliases = getWeaponsFromAliases(mentionedWeaponAliases, weaponsMap);
 
 
@@ -530,7 +534,9 @@ async function processSubredditItems(subreddit, myComments, repliedTo, allKeywor
           removeMessages++;
           if(removeMessages > userMessages.length) {
             done = true;
-            item.reply(`I'm sorry but I cannot generate a response to your question. The input is too long.\n\n${generateFooter(weapons)}`);
+            if(replyingToMe) {
+              item.reply(`I'm sorry but I cannot generate a response to your question. Something went wrong.\n\n${generateFooter(weapons)}`);
+            }
             item.save();
           }
         }
@@ -620,19 +626,21 @@ function generateUserMessages(commentChain, weaponAliases, weaponsMap) {
 }
 
 
-async function comparisonRequested(content) {
+async function comparisonRequested(message) {
   const ms = [
       { role: "system", content: classifierPrompt},
       { role: "user", content: message}
     ];
 
   const openaiResponse = await openai.createChatCompletion({
-    model: "gpt-3.5",
+    model: "gpt-3.5-turbo",
     messages: ms,
     max_tokens: 1
   });
 
-  return openaiResponse.data.choices[0].message.content.toLowerCase() === "y";
+  const compare = openaiResponse.data.choices[0].message.content.toLowerCase() === "y";
+
+  return compare;
 }
 
 async function generateAndSendReply(item, detectedKeywords, weapons, userMessages) {
