@@ -55,7 +55,6 @@ const classGroups = {
 const subclassKeywords = Object.values(classGroups).flat();
 const classKeywords = Object.keys(classGroups);
 
-const handedness = ["One Handed", "Two Handed"];
 const damageTypes = ["Cut", "Blunt", "Chop"];
 
 const subredditName = 'Chivalry2';
@@ -105,7 +104,18 @@ async function fetchKeywordsFromGithub() {
         weapon.aliases = adaptKeywords(weapon.aliases);
 
         weapon.keywords.push(weapon.damageType);
+        if(weapon.keywords.includes("Two Handed")) {
+          weapon.keywords.push("2h");
+          weapon.keywords.push("2 hander");
+          weapon.keywords.push("two hander");
+        } else if(weapon.keywords.includes("One Handed")) {
+          weapon.keywords.push("1h");
+          weapon.keywords.push("1 hander");
+          weapon.keywords.push("one hander");
+        }
+
         weapon.keywords = adaptKeywords(weapon.keywords);
+
       } catch (error) {
         console.error(`Error fetching JSON file from GitHub`);
         console.error(error);
@@ -472,14 +482,20 @@ async function processSubredditItems(subreddit, myComments, repliedTo, allKeywor
       console.log(`[${item.id}] Found directly referenced weapons: ${mentionedWeaponAliases}`);
 
       if(banned) {
-        console.log("Ignoring post from banned user: " + item.author.name);
+        console.log(`[${item.id}] Ignoring post from banned user: ${item.author.name}`);
         return;
       }
 
 
       if(!replyingToMe) {
-        if (mentionedWeaponAliases.length <= 1) return;
-        if (!(await comparisonRequested(body))) return;
+        if (mentionedWeaponAliases.length <= 1) {
+          console.log(`[${item.id}] Not enough weapons mentioned`);
+          return;
+        }
+        if (!(await comparisonRequested(body))) {
+          console.log(`[${item.id}] No Comparison requested`);
+          return;
+        }
         console.log(`[${item.id}] Comparison requested`);
       } else {
         console.log(`[${item.id}] Replied to me`);
