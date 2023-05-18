@@ -363,7 +363,7 @@ async function initialize() {
     const weaponsMap = await fetchKeywordsFromGithub();
     addAveragesToWeapons(weaponsMap);
     addAveragePercentilesToWeapons(weaponsMap);
-    const ignoreWords = ["cavalry sword", "calvary sword"]
+    const ignoreWords = [] // ["cavalry sword", "calvary sword"]
     const allKeywords = getAllKeywords(weaponsMap);
     const weaponAliases = getAllWeaponAliases(weaponsMap);
     const subreddit = await reddit.getSubreddit(subredditName);
@@ -649,7 +649,7 @@ async function comparisonRequested(message) {
     ];
 
   const openaiResponse = await openai.createChatCompletion({
-    model: "gpt-3.5-turbo",
+    model: "gpt-4",
     messages: ms,
     max_tokens: 1
   });

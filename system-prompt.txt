@@ -81,5 +81,6 @@ Combat Mechanics:
 
 Review the CSV data carefully. Users are intolerant of mistakes. 
 Do not repeat the same comparisons unless requested.
+There is no data avaliable for the Cavalry Sword
 CSV Data below:
 
