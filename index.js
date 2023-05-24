@@ -369,15 +369,32 @@ async function initialize() {
     const subreddit = await reddit.getSubreddit(subredditName);
 
     const weapons = Object.values(weaponsMap)
-
     weapons.sort((a, b) => a.percentile.average - b.percentile.average);
-    console.log(weapons);
+
+    writeKeywordsMD(weaponsMap, allKeywords);
 
     processSubredditItems(subreddit, myComments, repliedTo, allKeywords, weaponAliases, weaponsMap, ignoreWords, banlist);
   } catch (error) {
     console.error(`Error setting up connection: ${error}`);
     console.log(error);
   }
+}
+
+function writeKeywordsMD(weaponsMap, allKeywords) {
+    const keywordsMap = {}
+    allKeywords.forEach(k => { 
+      keywordsMap[k] = getWeaponsFromKeyword(k, weaponsMap).map(w => w.name)
+    });
+
+    let markdownString = "| Keyword | Weapons |\n|---------|----------|\n";
+
+    const keys = Object.keys(keywordsMap);
+    keys.sort();
+    keys.forEach(k => {
+      markdownString += `| ${k} | ${keywordsMap[k].join(", ")} |\n`;
+    });
+
+    writeFileSync('keywords.md', markdownString);
 }
 
 function getAllKeywords(weaponsMap) {
@@ -456,9 +473,6 @@ function replaceAliasesWithWeaponNames(foundAliases, body, weaponsMap) {
 }
 
 async function processSubredditItems(subreddit, myComments, repliedTo, allKeywords, weaponAliases, weaponsMap, ignoreWords, banlist) {
-  console.log(subreddit);
-  console.log(allKeywords);
-
   const processItem = async (item) => {
     try {
       var body = ""
