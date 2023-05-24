@@ -19,7 +19,7 @@ function generateFooter(weapons) {
     phNetBlurb = `You can see a visual comparison between the mentioned weapons [here](${polehammerLink}).`
   }
 
-  return `${phNetBlurb}\n\n^(I am a bot.  You can get my attention at any time by mentioning me by name. Learn more [here](https://github.com/Chiv2-Community/PolehammerPoster/blob/main/whoami.md). This bot uses unofficial data and is not affiliated with Torn Banner in any way.)`
+  return `${phNetBlurb}\n\n^(I am a bot.  Valid keywords are found [here](https://github.com/Chiv2-Community/PolehammerPoster/blob/main/keywords.md). You can get my attention at any time by mentioning me by name. Learn more [here](https://github.com/Chiv2-Community/PolehammerPoster/blob/main/whoami.md). This bot uses unofficial data and is not affiliated with Torn Banner in any way.)`
 }
 
 // Load API credentials from environment variables
