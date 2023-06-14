@@ -6,6 +6,7 @@ import { Configuration, OpenAIApi } from "openai";
 import { readFileSync, writeFileSync } from 'fs';
 import { parse } from 'json2csv';
 
+const DEBUG_STRING = ""
 
 dotenv.config();
 
@@ -83,6 +84,12 @@ async function fetchKeywordsFromGithub() {
         console.log(`Fetching JSON file from GitHub: ${file.name}`);
         const response = await axios.get(`${githubRawBaseUrl}/${file.name}`);
         const weapon = response.data;
+
+        if (!weapon.hasOwnProperty("id")) {
+          console.log(`Weapon data in ${file.name} is incomplete.  Skipping...`);
+          continue;
+        }
+
         weaponsMap[weapon.id] = weapon;
         weapon.keywords = [];
         weapon.keywords.push(weapon.name.toLowerCase());
@@ -153,7 +160,7 @@ function averageDamageMultiplier(type) {
 }
 
 
-
+/*
 function addAveragePercentilesToWeapons(weaponsMap) {
   const allWeapons = Object.values(weaponsMap)
 
@@ -197,6 +204,7 @@ function addAveragePercentilesToWeapons(weaponsMap) {
     };
   });
 }
+*/
 
 function weaponQueryParam(weapons) {
   var str = "weapon=";
@@ -225,20 +233,6 @@ const systemPrompt = readFileSync("system-prompt.txt").toString();
 const classifierPrompt = readFileSync("comment-classifier.txt").toString();
 
 function generateCsv(weapons) {
-  const fields = [
-    'name', 'classes', 'subclasses', 'damageType', 'handedness', 'averageRange', 
-    'averageAltRange', 'averageWindup', 'averageLightDamage', 
-    'averageHeavyDamage', 'slashRange', 'slashAltRange', 'slashWindup', 
-    'slashLightDamage', 'slashHeavyDamage', 'overheadRange', 'overheadAltRange', 
-    'overheadWindup', 'overheadLightDamage', 'overheadHeavyDamage', 'stabRange', 
-    'stabAltRange', 'stabWindup', 'stabLightDamage', 'stabHeavyDamage', 
-    'throwDamageLegs', 'throwDamageTorso', 'throwDamageHead', 
-    'specialAttackWindup', 'specialAttackDamage', 'chargeAttackDamage', 
-    'leapAttackDamage', 'damageMultiplierKnight', 'damageMultiplierFootman', 
-    'rangePercentile', 'windupPercentile', 'lightDamagePercentile', 
-    'heavyDamagePercentile', 'averagePercentile',
-  ];
-
   const processedWeapons = weapons.map(weapon => {
     const damageMultiplierFootman = weapon.damageType === 'Chop' ? 1.175 : weapon.damageType === 'Blunt' ? 1.35 : 1;
     const damageMultiplierKnight = weapon.damageType === 'Chop' ? 1.25 : weapon.damageType === 'Blunt' ? 1.5 : 1;
@@ -249,42 +243,71 @@ function generateCsv(weapons) {
       subclasses: weapon.subclasses.join(', '),
       damageType: weapon.damageType,
       handedness: weapon.weaponTypes.includes('One Handed') ? 'One Handed' : 'Two Handed',
-      rangePercentile: weapon.percentile.range.toFixed(1).replace(/\.0+$/, ''),
-      lightDamagePercentile: weapon.percentile.lightDamage.toFixed(1).replace(/\.0+$/, ''),
-      heavyDamagePercentile: weapon.percentile.heavyDamage.toFixed(1).replace(/\.0+$/, ''),
-      windupPercentile: weapon.percentile.windup.toFixed(1).replace(/\.0+$/, ''),
-      averagePercentile: weapon.percentile.average.toFixed(1).replace(/\.0+$/, ''),
-      averageRange: weapon.average.range.toFixed(1).replace(/\.0+$/, ''),
-      averageAltRange: weapon.average.altRange.toFixed(1).replace(/\.0+$/, ''),
-      averageWindup: weapon.average.windup.toFixed(1).replace(/\.0+$/, ''),
-      averageLightDamage: weapon.average.lightDamage.toFixed(1).replace(/\.0+$/, ''),
-      averageHeavyDamage: weapon.average.heavyDamage.toFixed(1).replace(/\.0+$/, ''),
+      averageRange: weapon.attacks.average.range.toFixed(1).replace(/\.0+$/, ''),
+      averageAltRange: weapon.attacks.average.altRange.toFixed(1).replace(/\.0+$/, ''),
+      averageLightWindup: weapon.attacks.average.light.windup.toFixed(1).replace(/\.0+$/, ''),
+      averageLightRelease: weapon.attacks.average.light.release.toFixed(1).replace(/\.0+$/, ''),
+      averageLightRecovery: weapon.attacks.average.light.recovery.toFixed(1).replace(/\.0+$/, ''),
+      averageLightCombo: weapon.attacks.average.light.recovery.toFixed(1).replace(/\.0+$/, ''),
+      averageLightDamage: weapon.attacks.average.light.damage.toFixed(1).replace(/\.0+$/, ''),
+      averageHeavyWindup: weapon.attacks.average.heavy.windup.toFixed(1).replace(/\.0+$/, ''),
+      averageHeavyRelease: weapon.attacks.average.heavy.release.toFixed(1).replace(/\.0+$/, ''),
+      averageHeavyRecovery: weapon.attacks.average.heavy.recovery.toFixed(1).replace(/\.0+$/, ''),
+      averageHeavyCombo: weapon.attacks.average.heavy.recovery.toFixed(1).replace(/\.0+$/, ''),
+      averageHeavyDamage: weapon.attacks.average.heavy.damage.toFixed(1).replace(/\.0+$/, ''),
       slashRange: weapon.attacks.slash.range.toFixed(1).replace(/\.0+$/, ''),
       slashAltRange: weapon.attacks.slash.altRange.toFixed(1).replace(/\.0+$/, ''),
-      slashWindup: weapon.attacks.slash.light.windup.toFixed(1).replace(/\.0+$/, ''),
+      slashLightWindup: weapon.attacks.slash.light.windup.toFixed(1).replace(/\.0+$/, ''),
+      slashLightRelease: weapon.attacks.slash.light.release.toFixed(1).replace(/\.0+$/, ''),
+      slashLightRecovery: weapon.attacks.slash.light.recovery.toFixed(1).replace(/\.0+$/, ''),
+      slashLightCombo: weapon.attacks.slash.light.recovery.toFixed(1).replace(/\.0+$/, ''),
       slashLightDamage: weapon.attacks.slash.light.damage.toFixed(1).replace(/\.0+$/, ''),
+      slashHeavyWindup: weapon.attacks.slash.heavy.windup.toFixed(1).replace(/\.0+$/, ''),
+      slashHeavyRelease: weapon.attacks.slash.heavy.release.toFixed(1).replace(/\.0+$/, ''),
+      slashHeavyRecovery: weapon.attacks.slash.heavy.recovery.toFixed(1).replace(/\.0+$/, ''),
+      slashHeavyCombo: weapon.attacks.slash.heavy.recovery.toFixed(1).replace(/\.0+$/, ''),
       slashHeavyDamage: weapon.attacks.slash.heavy.damage.toFixed(1).replace(/\.0+$/, ''),
       overheadRange: weapon.attacks.overhead.range.toFixed(1).replace(/\.0+$/, ''),
       overheadAltRange: weapon.attacks.overhead.altRange.toFixed(1).replace(/\.0+$/, ''),
-      overheadWindup: weapon.attacks.overhead.light.windup.toFixed(1).replace(/\.0+$/, ''),
+      overheadLightWindup: weapon.attacks.overhead.light.windup.toFixed(1).replace(/\.0+$/, ''),
+      overheadLightRelease: weapon.attacks.overhead.light.release.toFixed(1).replace(/\.0+$/, ''),
+      overheadLightRecovery: weapon.attacks.overhead.light.recovery.toFixed(1).replace(/\.0+$/, ''),
+      overheadLightCombo: weapon.attacks.overhead.light.recovery.toFixed(1).replace(/\.0+$/, ''),
       overheadLightDamage: weapon.attacks.overhead.light.damage.toFixed(1).replace(/\.0+$/, ''),
+      overheadHeavyWindup: weapon.attacks.overhead.heavy.windup.toFixed(1).replace(/\.0+$/, ''),
+      overheadHeavyRelease: weapon.attacks.overhead.heavy.release.toFixed(1).replace(/\.0+$/, ''),
+      overheadHeavyRecovery: weapon.attacks.overhead.heavy.recovery.toFixed(1).replace(/\.0+$/, ''),
+      overheadHeavyCombo: weapon.attacks.overhead.heavy.recovery.toFixed(1).replace(/\.0+$/, ''),
       overheadHeavyDamage: weapon.attacks.overhead.heavy.damage.toFixed(1).replace(/\.0+$/, ''),
       stabRange: weapon.attacks.stab.range.toFixed(1).replace(/\.0+$/, ''),
       stabAltRange: weapon.attacks.stab.altRange.toFixed(1).replace(/\.0+$/, ''),
-      stabWindup: weapon.attacks.stab.light.windup.toFixed(1).replace(/\.0+$/, ''),
+      stabLightWindup: weapon.attacks.stab.light.windup.toFixed(1).replace(/\.0+$/, ''),
+      stabLightRelease: weapon.attacks.stab.light.release.toFixed(1).replace(/\.0+$/, ''),
+      stabLightRecovery: weapon.attacks.stab.light.recovery.toFixed(1).replace(/\.0+$/, ''),
+      stabLightCombo: weapon.attacks.stab.light.recovery.toFixed(1).replace(/\.0+$/, ''),
       stabLightDamage: weapon.attacks.stab.light.damage.toFixed(1).replace(/\.0+$/, ''),
+      stabHeavyWindup: weapon.attacks.stab.heavy.windup.toFixed(1).replace(/\.0+$/, ''),
+      stabHeavyRelease: weapon.attacks.stab.heavy.release.toFixed(1).replace(/\.0+$/, ''),
+      stabHeavyRecovery: weapon.attacks.stab.heavy.recovery.toFixed(1).replace(/\.0+$/, ''),
+      stabHeavyCombo: weapon.attacks.stab.heavy.recovery.toFixed(1).replace(/\.0+$/, ''),
       stabHeavyDamage: weapon.attacks.stab.heavy.damage.toFixed(1).replace(/\.0+$/, ''),
-      throwDamageLegs: weapon.rangedAttack.damage.legs.toFixed(1).replace(/\.0+$/, ''),
-      throwDamageTorso: weapon.rangedAttack.damage.torso.toFixed(1).replace(/\.0+$/, ''),
-      throwDamageHead: weapon.rangedAttack.damage.head.toFixed(1).replace(/\.0+$/, ''),
-      specialAttackWindup: weapon.specialAttack.windup.toFixed(1).replace(/\.0+$/, ''),
-      specialAttackDamage: weapon.specialAttack.damage.toFixed(1).replace(/\.0+$/, ''),
-      chargeAttackDamage: weapon.chargeAttack.damage.toFixed(1).replace(/\.0+$/, ''),
-      leapAttackDamage: weapon.leapAttack.damage.toFixed(1).replace(/\.0+$/, ''),
+      throwWindup: weapon.attacks.throw.windup.toFixed(1).replace(/\.0+$/, ''),
+      throwRelease: weapon.attacks.throw.release.toFixed(1).replace(/\.0+$/, ''),
+      throwRecovery: weapon.attacks.throw.recovery.toFixed(1).replace(/\.0+$/, ''),
+      throwDamage: weapon.attacks.throw.damage.toFixed(1).replace(/\.0+$/, ''),
+      specialAttackWindup: weapon.attacks.special.windup.toFixed(1).replace(/\.0+$/, ''),
+      specialAttackRelease: weapon.attacks.special.release.toFixed(1).replace(/\.0+$/, ''),
+      specialAttackRecovery: weapon.attacks.special.recovery.toFixed(1).replace(/\.0+$/, ''),
+      specialAttackDamage: weapon.attacks.special.damage.toFixed(1).replace(/\.0+$/, ''),
+      sprintAttackWindup: weapon.attacks.sprintAttack.windup.toFixed(1).replace(/\.0+$/, ''),
+      sprintAttackRelease: weapon.attacks.sprintAttack.release.toFixed(1).replace(/\.0+$/, ''),
+      sprintAttackCombo: weapon.attacks.sprintAttack.combo.toFixed(1).replace(/\.0+$/, ''),
+      sprintAttackDamage: weapon.attacks.sprintAttack.damage.toFixed(1).replace(/\.0+$/, ''),
       damageMultiplierFootman: damageMultiplierFootman.toString().replace(/\.0+$/, ''),
       damageMultiplierKnight: damageMultiplierKnight.toString().replace(/\.0+$/, ''),
     };
   });
+  const fields = Object.keys(processedWeapons[0]);
 
   const opts = { fields };
   return parse(processedWeapons, opts);
@@ -361,15 +384,15 @@ async function initialize() {
     const repliedTo = getRepliedTo();
     const banlist = getBanlist();
     const weaponsMap = await fetchKeywordsFromGithub();
-    addAveragesToWeapons(weaponsMap);
-    addAveragePercentilesToWeapons(weaponsMap);
+    //addAveragesToWeapons(weaponsMap);
+    //addAveragePercentilesToWeapons(weaponsMap);
     const ignoreWords = [] // ["cavalry sword", "calvary sword"]
     const allKeywords = getAllKeywords(weaponsMap);
     const weaponAliases = getAllWeaponAliases(weaponsMap);
     const subreddit = await reddit.getSubreddit(subredditName);
 
     const weapons = Object.values(weaponsMap)
-    weapons.sort((a, b) => a.percentile.average - b.percentile.average);
+    // weapons.sort((a, b) => a.percentile.average - b.percentile.average);
 
     writeKeywordsMD(weaponsMap, allKeywords);
 
@@ -479,7 +502,9 @@ async function processSubredditItems(subreddit, myComments, repliedTo, allKeywor
       if(item.hasOwnProperty("body"))
         body = item.body.toLowerCase();
       else 
-        body += `#${item.title}\n\n${item.selftext ? item.selftext : ""}`;
+        body += `#${item.title.toLowerCase()}\n\n${item.selftext.toLowerCase() ? item.selftext.toLowerCase() : ""}`;
+
+      body += DEBUG_STRING
 
       const ignore = ignoreWords.some((word) => body.includes(word));
       const banned = banlist.includes(item.author.name.toLowerCase());
@@ -528,13 +553,11 @@ async function processSubredditItems(subreddit, myComments, repliedTo, allKeywor
       const chainKeywords = getKeywordsFromCommentChain(commentChain, allKeywords);
       const weaponsFromAliases = getWeaponsFromAliases(mentionedWeaponAliases, weaponsMap);
 
-
       const weapons = 
         [...new Set(getWeaponsFromKeywords(chainKeywords, weaponsMap)
                   .concat([weaponsMap["ph"]])
                   .map(x => x.id))
         ].map(id => weaponsMap[id]);
-
 
 
       const userMessages = generateUserMessages(commentChain, mentionedWeaponAliases, weaponsMap);
@@ -560,6 +583,7 @@ async function processSubredditItems(subreddit, myComments, repliedTo, allKeywor
           done = true;
         } catch(error) {
           console.log(`[${item.id}] Error generating reply: ${error}`);
+          console.log(error.stack)
           console.log(`[${item.id}] Trying again with less context. ${removeMessages}`);
           removeMessages++;
           if(removeMessages > userMessages.length) {
@@ -609,6 +633,8 @@ function getKeywordsFromCommentChain(commentChain, allKeywords) {
         content = content + c.selftext.toLowerCase()
       else if(c.hasOwnProperty("body"))
         content = content + c.body.toLowerCase()
+      
+      content += DEBUG_STRING
 
       return findAllKeywords(content, allKeywords)
     });
@@ -639,6 +665,7 @@ function generateUserMessages(commentChain, weaponAliases, weaponsMap) {
       content = content + item.body.toLowerCase()
 
     let messageContent = replaceAliasesWithWeaponNames(weaponAliases, content, weaponsMap);
+    messageContent += DEBUG_STRING
 
     // Remove the footer from the message if assistant, otherwise prefix the username
     if(messageRole === "assistant")
@@ -688,6 +715,8 @@ async function generateAndSendReply(item, detectedKeywords, weapons, userMessage
   });
 
   const aiAnswer = openaiResponse.data.choices[0].message.content
+  console.log(aiAnswer);
+
   const reply = generateReply(aiAnswer.replaceAll("\"", ""), weapons);
 
   console.log(ms);
