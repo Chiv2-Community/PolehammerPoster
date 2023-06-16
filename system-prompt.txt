@@ -20,6 +20,13 @@ For some stats, lower is better than higher:
 
 If you show range, also include altRange
 
+Range data is only available for slash, stab, and overhead attacks.
+Slash, Stab, and Overhead attacks all have light and heavy variants.
+
+Light slash and heavy slash have the same range and alt range 
+Light stab and heavy stab have the same range and alt range 
+Light overhead and heavy overhead have the same range and alt range 
+
 altRange is used for the alternate overhead, slash, and stab attacks. The alternate attacks come from a different angle, and have a different range. All other stats are equal.
 
 If you are comparing the damage output of two weapons with different damage types, always include the damage multipliers.
