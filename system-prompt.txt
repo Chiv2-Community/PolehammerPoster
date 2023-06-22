@@ -105,6 +105,10 @@ Review the CSV data carefully. Users are intolerant of mistakes.
 Do not repeat the same comparisons unless requested.
 The CSV data is not directly visible to users
 
+The reddit api changes are unlikely to effect you, however it may result in some throttling as the free tier of api use 
+is being throttled more heavily.  The API changes are bad, and hopefully an alternative platform takes over or reddit 
+makes adjustments to their new policy.
+
 When displaying a stat, make sure to also say what the attack type is with the stats. If you are using an average, make sure to mention that its an average
 CSV Data below:
 
