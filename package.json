@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "axios": "^1.4.0",
+    "chivalry2-weapons": "^0.7.1",
     "dotenv": "^16.0.3",
     "forever": "^4.0.3",
     "json2csv": "^6.0.0-alpha.2",

@@ -1,10 +1,11 @@
 import axios from 'axios';
 import snoowrap from 'snoowrap';
-import { InboxStream, CommentStream, SubmissionStream } from "snoostorm";;
+import { CommentStream, SubmissionStream } from "snoostorm";;
 import dotenv from 'dotenv';
 import { Configuration, OpenAIApi } from "openai";
 import { readFileSync, writeFileSync } from 'fs';
 import { parse } from 'json2csv';
+import { ALL_WEAPONS, bonusDamageMult } from 'chivalry2-weapons'
 
 const DEBUG_STRING = ""
 
@@ -66,145 +67,44 @@ async function fetchKeywordsFromGithub() {
 
   let weaponsMap = {};
 
-  try {
-    // Fetch the list of files in the directory
-    const fileListResponse = await axios.get(githubApiUrl, {
-      headers: {
-        Authorization: `token ${GITHUB_TOKEN}`,
-      },
+  for (const weapon of ALL_WEAPONS) {
+    console.log("Loading " + weapon.name);
+    weaponsMap[weapon.id] = weapon;
+    weapon.keywords = [];
+    weapon.keywords.push(weapon.name.toLowerCase());
+
+    weapon.classes = weapon.weaponTypes.map(x => x.toLowerCase()).filter(x => classKeywords.includes(x))
+    weapon.subclasses = weapon.weaponTypes.map(x => x.toLowerCase()).filter(x => subclassKeywords.includes(x))
+    weapon.weaponTypes.forEach(weaponType => {
+      weapon.keywords.push(weaponType);
     });
-    const fileList = fileListResponse.data;
-
-    // Filter JSON files
-    const jsonFiles = fileList.filter((file) => file.name.endsWith('.json'));
-
-    // Fetch and process each JSON file
-    for (const file of jsonFiles) {
-      try {
-        console.log(`Fetching JSON file from GitHub: ${file.name}`);
-        const response = await axios.get(`${githubRawBaseUrl}/${file.name}`);
-        const weapon = response.data;
-
-        if (!weapon.hasOwnProperty("id")) {
-          console.log(`Weapon data in ${file.name} is incomplete.  Skipping...`);
-          continue;
-        }
-
-        weaponsMap[weapon.id] = weapon;
-        weapon.keywords = [];
-        weapon.keywords.push(weapon.name.toLowerCase());
-
-        weapon.classes = weapon.weaponTypes.map(x => x.toLowerCase()).filter(x => classKeywords.includes(x))
-        weapon.subclasses = weapon.weaponTypes.map(x => x.toLowerCase()).filter(x => subclassKeywords.includes(x))
-        weapon.weaponTypes.forEach(weaponType => {
-          weapon.keywords.push(weaponType);
-        });
-        if(weapon.hasOwnProperty("aliases")) {
-          weapon.aliases.forEach((alias) => {
-            weapon.keywords.push(alias.toLowerCase());
-          });
-        } else {
-          weapon.aliases = [];
-        }
-
-        weapon.aliases.push(weapon.name);
-        weapon.aliases = adaptKeywords(weapon.aliases);
-
-        weapon.keywords.push(weapon.damageType);
-        if(weapon.keywords.includes("Two Handed")) {
-          weapon.keywords.push("2h");
-          weapon.keywords.push("2 hander");
-          weapon.keywords.push("two hander");
-        } else if(weapon.keywords.includes("One Handed")) {
-          weapon.keywords.push("1h");
-          weapon.keywords.push("1 hander");
-          weapon.keywords.push("one hander");
-        }
-
-        weapon.keywords = adaptKeywords(weapon.keywords);
-
-      } catch (error) {
-        console.error(`Error fetching JSON file from GitHub`);
-        console.error(error);
-      }
+    if(weapon.hasOwnProperty("aliases")) {
+      weapon.aliases.forEach((alias) => {
+        weapon.keywords.push(alias.toLowerCase());
+      });
+    } else {
+      weapon.aliases = [];
     }
-  } catch (error) {
-    console.error(`Error fetching file list from GitHub: ${error}`);
-  }
 
+    weapon.aliases.push(weapon.name);
+    weapon.aliases = adaptKeywords(weapon.aliases);
+
+    weapon.keywords.push(weapon.damageType);
+    if(weapon.keywords.includes("Two Handed")) {
+      weapon.keywords.push("2h");
+      weapon.keywords.push("2 hander");
+      weapon.keywords.push("two hander");
+    } else if(weapon.keywords.includes("One Handed")) {
+      weapon.keywords.push("1h");
+      weapon.keywords.push("1 hander");
+      weapon.keywords.push("one hander");
+    }
+
+    weapon.keywords = adaptKeywords(weapon.keywords);
+  }
 
   return weaponsMap;
 }
-
-function addAveragesToWeapons(weaponsMap) {
-  Object.keys(weaponsMap).forEach((key) => {
-    const weapon = weaponsMap[key];
-    weapon.average = {
-      range: ((weapon.attacks.slash.range + weapon.attacks.overhead.range + weapon.attacks.stab.range) / 3),
-      altRange: ((weapon.attacks.slash.altRange + weapon.attacks.overhead.altRange + weapon.attacks.stab.altRange) / 3),
-      lightDamage: ((weapon.attacks.slash.light.damage + weapon.attacks.overhead.light.damage + weapon.attacks.stab.light.damage) / 3),
-      heavyDamage: ((weapon.attacks.slash.heavy.damage + weapon.attacks.overhead.heavy.damage + weapon.attacks.stab.heavy.damage) / 3),
-      windup: ((weapon.attacks.slash.light.windup + weapon.attacks.overhead.light.windup + weapon.attacks.stab.light.windup) / 3),
-    }
-  });
-}
-
-function averageDamageMultiplier(type) {
-  if(type === "Chop") {
-    return (1 + 1 + 1.175 + 1.25) / 4
-  } else if (type === "Blunt") {
-    return (1 + 1 + 1.35 + 1.5) / 4
-  } else if (type === "Cut") {
-    return 1
-  } else throw new Error("Unknown damage type: " + type);
-}
-
-
-/*
-function addAveragePercentilesToWeapons(weaponsMap) {
-  const allWeapons = Object.values(weaponsMap)
-
-  const sortedByLightDamage = allWeapons.slice().sort((a, b) => 
-    (a.average.lightDamage * averageDamageMultiplier(a.damageType)) - 
-    (b.average.lightDamage * averageDamageMultiplier(b.damageType))
-  ).map(x => x.id);
-
-  const sortedByHeavyDamage = allWeapons.slice().sort((a, b) =>
-    (a.average.heavyDamage * averageDamageMultiplier(a.damageType)) - 
-    (b.average.heavyDamage * averageDamageMultiplier(b.damageType))
-  ).map(x => x.id);
-
-  const sortedByWindup = allWeapons.slice().sort((a, b) =>
-    b.average.windup - a.average.windup
-  ).map(x => x.id);
-
-  var sortedByAverageRange = allWeapons.slice().sort((a, b) =>
-    ((a.average.range + a.average.altRange) / 2) - 
-    ((b.average.range + b.average.altRange) / 2)
-  );
-  sortedByAverageRange = sortedByAverageRange.map(x => x.id);
-
-
-  function toPercentile(id, sortedIds) {
-    return (sortedIds.indexOf(id) / sortedIds.length) * 100;
-  }
-
-  Object.keys(weaponsMap).forEach((key) => {
-    const rangePercentile = toPercentile(key, sortedByAverageRange);
-    const lightDamagePercentile = toPercentile(key, sortedByLightDamage);
-    const heavyDamagePercentile = toPercentile(key, sortedByHeavyDamage);
-    const windupPercentile = toPercentile(key, sortedByWindup);
-
-    weaponsMap[key].percentile = {
-      range: rangePercentile,
-      lightDamage: lightDamagePercentile,
-      heavyDamage: heavyDamagePercentile,
-      windup: windupPercentile,
-      average: (rangePercentile + lightDamagePercentile + heavyDamagePercentile + windupPercentile) / 4
-    };
-  });
-}
-*/
 
 function weaponQueryParam(weapons) {
   var str = "weapon=";
