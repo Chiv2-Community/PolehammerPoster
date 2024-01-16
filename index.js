@@ -59,8 +59,6 @@ const classKeywords = Object.keys(classGroups);
 
 const damageTypes = ["Cut", "Blunt", "Chop"];
 
-const subredditName = 'Chivalry2';
-
 async function fetchKeywordsFromGithub() {
   const githubApiUrl = 'https://api.github.com/repos/Jacoby6000/polehammer/contents/src/weapons';
   const githubRawBaseUrl = 'https://raw.githubusercontent.com/Jacoby6000/polehammer/main/src/weapons';
@@ -289,17 +287,17 @@ async function initialize() {
     const ignoreWords = [] // ["cavalry sword", "calvary sword"]
     const allKeywords = getAllKeywords(weaponsMap);
     const weaponAliases = getAllWeaponAliases(weaponsMap);
-    const subreddit = await reddit.getSubreddit(subredditName);
 
     const weapons = Object.values(weaponsMap)
     // weapons.sort((a, b) => a.percentile.average - b.percentile.average);
 
     writeKeywordsMD(weaponsMap, allKeywords);
 
-    processSubredditItems(subreddit, myComments, repliedTo, allKeywords, weaponAliases, weaponsMap, ignoreWords, banlist);
+    processSubredditItems("Chivalry2", myComments, repliedTo, allKeywords, weaponAliases, weaponsMap, ignoreWords, banlist);
+    processSubredditItems("ChivalryCreatorsGuild", myComments, repliedTo, allKeywords, weaponAliases, weaponsMap, ignoreWords, banlist);
   } catch (error) {
     console.error(`Error setting up connection: ${error}`);
-    console.log(error);
+    // console.log(error);
   }
 }
 
@@ -395,7 +393,9 @@ function replaceAliasesWithWeaponNames(foundAliases, body, weaponsMap) {
   return localBody;
 }
 
-async function processSubredditItems(subreddit, myComments, repliedTo, allKeywords, weaponAliases, weaponsMap, ignoreWords, banlist) {
+async function processSubredditItems(subRedditName, myComments, repliedTo, allKeywords, weaponAliases, weaponsMap, ignoreWords, banlist) {
+  const subreddit = await reddit.getSubreddit(subRedditName);
+
   const processItem = async (item) => {
     try {
       var body = ""
@@ -503,13 +503,13 @@ async function processSubredditItems(subreddit, myComments, repliedTo, allKeywor
 
   try {
     const comments = new CommentStream(reddit, {
-      subreddit: subredditName,
+      subreddit: subRedditName,
       limit: 50,
       pollTime: 30000,
     });
     
     const submissions = new SubmissionStream(reddit, {
-      subreddit: subredditName,
+      subreddit: subRedditName,
       limit: 50,
       pollTime: 30000,
     });
