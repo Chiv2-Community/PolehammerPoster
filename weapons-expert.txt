@@ -13,10 +13,13 @@ For some stats, lower is better than higher:
 * windup: lower is better
 * release: higher is better
 * recovery: lower is better
+* thwack: lower is better
 * combo: lower is better
 * range: higher is better
 * altRange: higher is better
 * damage: higher is better.
+
+thwack replaces recovery after an attack with hit-stop lands.
 
 holding is a 350ms window that applies to the beginning of every attack
 
